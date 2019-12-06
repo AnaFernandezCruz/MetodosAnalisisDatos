@@ -4,4 +4,15 @@ author: "Ana Fernández Cruz, Jesús Gallego Olivas y Miguel Ángel Sánchez Alc
 date: "12/6/2019"
 output: html_document
 ---
+ 
+Antes de nada, lo que vamos a hacer va a ser separar los datos de validación del resto. Para ello vamos a leer el archivo y vamos a filtrar los datos del último año para cada país y los vamos a guardar en un dataset llamado Validación. 
+```{r}
+Life_Expectancy_Data <- read.csv("/media/anabanana/TOSHIBA EXT/Master/T1/FundamentosAnalisisDatos/4.MétodosAnálisisDatos/Practica/Life_Expectancy_Data.csv")
 
+Validacion <- subset(Life_Expectancy_Data, Year== 2015)
+write.csv(Validacion, "validación.csv")
+
+#Resto de datos
+Datos_estudio <- subset(Life_Expectancy_Data, Year != 2015)
+write.csv(Datos_estudio, "datos_practica.csv")
+```
