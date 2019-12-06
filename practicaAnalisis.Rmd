@@ -4,8 +4,9 @@ author: "Ana Fernández Cruz, Jesús Gallego Olivas y Miguel Ángel Sánchez Alc
 date: "12/6/2019"
 output: html_document
 ---
- 
-Antes de nada, lo que vamos a hacer va a ser separar los datos de validación del resto. Para ello vamos a leer el archivo y vamos a filtrar los datos del último año para cada país y los vamos a guardar en un dataset llamado Validación. 
+
+
+Antes de proceder a realizar la práctica vamos a separar los datos de validación del resto. Para ello vamos a leer el archivo y vamos a filtrar los datos del último año y los vamos a guardar en un dataset llamado Validación. El resto de datos los utilizaremos durante la práctica y llamaremos a ese csv datos_practica.
 ```{r}
 Life_Expectancy_Data <- read.csv("/media/anabanana/TOSHIBA EXT/Master/T1/FundamentosAnalisisDatos/4.MétodosAnálisisDatos/Practica/Life_Expectancy_Data.csv")
 
@@ -16,3 +17,32 @@ write.csv(Validacion, "validación.csv")
 Datos_estudio <- subset(Life_Expectancy_Data, Year != 2015)
 write.csv(Datos_estudio, "datos_practica.csv")
 ```
+
+1. Uso de herramienta/s de control versiones.
+
+Para la correcta realización de la práctica vamos a utilizar github para realizar un control de versiones eficaz.
+
+https://github.com/AnaFernandezCruz/MetodosAnalisisDatos
+
+2. Definición de objetivos.
+
+
+3. Análisis exploratorio inicial.
+
+
+4. Detección, tratamiento e imputación de datos faltantes.
+
+
+5. Transformaciones de variables cuantitativas.
+
+
+6. Procesado de variables cualitativas.
+
+
+7. Selección de variables
+
+
+8. Ajuste, interpretación y diagnosis del model de regresión lineal múltiple.
+
+
+9. Valoración del profesor.
