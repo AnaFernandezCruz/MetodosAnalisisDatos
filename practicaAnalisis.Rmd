@@ -32,6 +32,28 @@ https://github.com/AnaFernandezCruz/MetodosAnalisisDatos
 
 4. Detección, tratamiento e imputación de datos faltantes.
 
+Para poder aplicar técnicas de imputación de datos faltantes tenemos que tener una idea de cuantos datos faltan en nuestro dataset. Para ello podemos hacer un resumen de todos nuestros datos usando summary(dataframe).
+
+```{r}
+summary(Datos_estudio)
+```
+
+Aunque si queremos el número total de NA en nuestro dataframe y la proporción de ellos, haremos:
+
+```{r include=FALSE}
+library(dplyr)
+```
+
+```{r message=FALSE, warning=FALSE}
+#Obtenemos el número de NA en todo el dataframe
+sum(is.na(Datos_estudio))
+
+#Obtenemos la proporción de NA en todo el dataframe
+mean(is.na(Datos_estudio))
+
+#Usando la librería dplyr podemos obtener la proporción de NA por columnas
+Datos_estudio %>% summarize_all(funs(sum(is.na(.)) / length(.)))
+```
 
 5. Transformaciones de variables cuantitativas.
 
