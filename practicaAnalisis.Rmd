@@ -219,6 +219,78 @@ Life_Expectancy_DataSinPaisNiAño = subset(Life_Expectancy_Data, select = -c(Pai
 
 ```
 
+```{r}
+introduce(Datos_estudioSinPaisNiAño)
+```
+
+
+```{r}
+library(skimr)
+library(pander)
+skim(Datos_estudioSinPaisNiAño)  %>% pander()
+```
+
+```{r}
+plot_intro(Datos_estudioSinPaisNiAño)
+```
+
+
+
+```{r}
+aggr(Datos_estudioSinPaisNiAño)
+```
+
+
+```{r}
+missing_data <- plot_missing(Datos_estudioSinPaisNiAño)
+```
+
+```{r}
+# DataExplorer::create_report(datosOriginales) 
+plot_bar(Datos_estudioSinPaisNiAño)
+```
+
+```{r}
+Datos_estudioSinPaisNiAño %>% dplyr::select(Esperanza_Vida:Indice_Masa_Corporal) %>% plot_histogram()
+```
+
+
+```{r}
+Datos_estudioSinPaisNiAño %>% dplyr::select(Tasa_Mortalidad_Menos_5_años:Delgadez_Niños_10_19) %>% plot_histogram()
+```
+
+
+```{r}
+Datos_estudioSinPaisNiAño %>% dplyr::select(Delgadez_Niños_5_9:años_Escolarizacion_Media) %>% plot_histogram()
+```
+
+
+
+```{r}
+Datos_estudioSinPaisNiAño %>% dplyr::select(Esperanza_Vida:Indice_Masa_Corporal) %>% plot_qq(sampled_rows = 1000L)
+```
+
+
+```{r}
+Datos_estudioSinPaisNiAño %>% dplyr::select(Tasa_Mortalidad_Menos_5_años:Delgadez_Niños_10_19) %>% plot_qq(sampled_rows = 1000L)
+```
+
+
+```{r}
+Datos_estudioSinPaisNiAño %>% dplyr::select(Delgadez_Niños_5_9:años_Escolarizacion_Media) %>% plot_qq(sampled_rows = 1000L)
+```
+
+
+```{r}
+Datos_estudioSinPaisNiAño %>% dplyr::select(Esperanza_Vida:Indice_Masa_Corporal) %>% plot_boxplot(by ="Esperanza_Vida", geom_boxplot_args = list("outlier.color" = "red"))
+```
+
+
+```{r}
+plot_correlation(na.omit(Datos_estudioSinPaisNiAño), maxcat = 5L)
+```
+
+
 4. Detección, tratamiento e imputación de datos faltantes.
 
 Para poder aplicar técnicas de imputación de datos faltantes tenemos que tener una idea de cuantos datos faltan en nuestro dataset. Para ello podemos hacer un resumen de todos nuestros datos usando summary(dataframe).
