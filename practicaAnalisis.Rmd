@@ -104,6 +104,11 @@ listadoColumnas.data %>%
   
 ```{r}
 
+library(skimr)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+
 Life_Expectancy_Data = Life_Expectancy_Data %>% 
   rename(
     Pais = Country,
@@ -176,10 +181,19 @@ Datos_estudio = Datos_estudio %>%
   library(deducorrect)
   library(alr4)
 
+codigosPais = read.csv(file = paste(pathDatos,"Paises_Subregion.csv",sep=""))
+
 Life_Expectancy_Data  <-merge(x=Life_Expectancy_Data,y=UN11,by.x =1 , by.y = 0,all.x=TRUE)
+
+Life_Expectancy_Data_PaisSubregion <- merge(x=Life_Expectancy_Data,y=codigosPais,by.x =1 , by.y = 1,all.x=TRUE) %>% dplyr::select(Pais,sub.region)
+
+Life_Expectancy_Data <-merge(x=Life_Expectancy_Data,Life_Expectancy_Data_PaisSubregion,by.x =1 , by.y = 1,all.x=TRUE)
 
 Datos_estudio <-merge(x=Datos_estudio,y=UN11,by.x =1 , by.y = 0,all.x=TRUE)
 
+Datos_estudio_PaisSubregion <- merge(x=Datos_estudio,y=codigosPais,by.x =1 , by.y = 1,all.x=TRUE) %>% dplyr::select(Pais,sub.region)
+
+Datos_estudio <-merge(x=Datos_estudio,Datos_estudio_PaisSubregion,by.x =1 , by.y = 1,all.x=TRUE)
 
 ```
 
