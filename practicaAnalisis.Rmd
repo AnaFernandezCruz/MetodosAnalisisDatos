@@ -206,38 +206,44 @@ library(validatetools)
 library(deducorrect)
 
 if(!file.exists(paste(pathDatos,"Life_Expectancy_Data_Corregidos.csv",sep=""))) {
+  
     rulesCorrection <- correctionRules(paste(pathDatos,"corrections.txt",sep=""))
     #ve <- violatedEdits(rulesCorrection,datosOriginalesCodigosPais)
     #el <- localizeErrors(rulesCorrection,Datos_estudio)
     corrections <- correctWithRules(rulesCorrection,Datos_estudio)
     Datos_estudio <- corrections$corrected
+    Datos_estudio <- subset(Datos_estudio, select =-c(fertility,ppgdp,lifeExpF,pctUrban))
     Datos_estudioSinPaisNiAño = subset(Datos_estudio, select = -c(Pais,Año) )
     
     #el2 <- localizeErrors(rulesCorrection,Life_Expectancy_Data)
     corrections2 <- correctWithRules(rulesCorrection,Life_Expectancy_Data)
     Life_Expectancy_Data <- corrections2$corrected
+    Life_Expectancy_Data<- subset(Life_Expectancy_Data, select =-c(fertility,ppgdp,lifeExpF,pctUrban))
     Life_Expectancy_DataSinPaisNiAño = subset(Life_Expectancy_Data, select =-c(Pais,Año))
     
-} 
+    rulesCorrectionRanges <-correctionRules( paste( pathDatos , "rulesAsignacionNAs.txt" , sep=""))
+    corrections3 <- correctWithRules(rulesCorrectionRanges,Datos_estudio)
+    Datos_estudio <- corrections3$corrected
+  
+    corrections4 <- correctWithRules(rulesCorrectionRanges,Life_Expectancy_Data)
+    Life_Expectancy_Data <- corrections4$corrected
+    
+    write.csv(Datos_estudio, "datos_practica_Corregidos.csv", row.names=FALSE)
+    write.csv(Life_Expectancy_Data, "Life_Expectancy_Data_Corregidos.csv", row.names=FALSE)
+   
+    
+}else{
+  Datos_estudio = read.csv(paste(pathDatos,"datos_practica_Corregidos.csv",sep=""),na.strings=c("NA","NaN", ""))
+  Datos_estudioSinPaisNiAño = subset(Datos_estudio, select = -c(Pais,Año) )
+  Life_Expectancy_Data = read.csv(paste(pathDatos,"Life_Expectancy_Data_Corregidos.csv",sep=""),na.strings=c("NA","NaN", ""))
+  Life_Expectancy_DataSinPaisNiAño = subset(Life_Expectancy_Data, select =-c(Pais,Año))
+}
 
 ```
 
 ```{r}
 library(DataExplorer)
 introduce(Datos_estudioSinPaisNiAño)
-```
-
-```{r}
-rulesCorrectionRanges <- correctionRules(paste(pathDatos,"rulesAsignacionNAs.txt",sep=""))
-corrections3 <- correctWithRules(rulesCorrectionRanges,Datos_estudio)
-Datos_estudio <- corrections3$corrected
-
-corrections4 <- correctWithRules(rulesCorrectionRanges,Life_Expectancy_Data)
-Life_Expectancy_Data <- corrections4$corrected
-
-write.csv(Datos_estudio, "datos_practica_Corregidos.csv")
-write.csv(Datos_estudio, "Life_Expectancy_Data_Corregidos.csv")
-
 ```
 
 
@@ -255,6 +261,7 @@ plot_intro(Datos_estudioSinPaisNiAño)
 
 
 ```{r}
+library(VIM)
 aggr(Datos_estudioSinPaisNiAño)
 ```
 
