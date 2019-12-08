@@ -185,13 +185,13 @@ codigosPais = read.csv(file = paste(pathDatos,"Paises_Subregion.csv",sep=""))
 
 Life_Expectancy_Data  <-merge(x=Life_Expectancy_Data,y=UN11,by.x =1 , by.y = 0,all.x=TRUE)
 
-Life_Expectancy_Data_PaisSubregion <- merge(x=Life_Expectancy_Data,y=codigosPais,by.x =1 , by.y = 1,all.x=TRUE) %>% dplyr::select(Pais,sub.region)
+Life_Expectancy_Data_PaisSubregion <- merge(x=Life_Expectancy_Data,y=codigosPais,by.x =1 , by.y = 1,all.x=TRUE) %>% dplyr::select(Pais,sub.region) %>% dplyr::distinct()
 
 Life_Expectancy_Data <-merge(x=Life_Expectancy_Data,Life_Expectancy_Data_PaisSubregion,by.x =1 , by.y = 1,all.x=TRUE)
 
 Datos_estudio <-merge(x=Datos_estudio,y=UN11,by.x =1 , by.y = 0,all.x=TRUE)
 
-Datos_estudio_PaisSubregion <- merge(x=Datos_estudio,y=codigosPais,by.x =1 , by.y = 1,all.x=TRUE) %>% dplyr::select(Pais,sub.region)
+Datos_estudio_PaisSubregion <- merge(x=Datos_estudio,y=codigosPais,by.x =1 , by.y = 1,all.x=TRUE) %>% dplyr::select(Pais,sub.region) %>% dplyr::distinct()
 
 Datos_estudio <-merge(x=Datos_estudio,Datos_estudio_PaisSubregion,by.x =1 , by.y = 1,all.x=TRUE)
 
@@ -205,23 +205,41 @@ library(validate)
 library(validatetools)
 library(deducorrect)
 
-rulesCorrection <- correctionRules(paste(pathDatos,"corrections.txt",sep=""))
-#ve <- violatedEdits(rulesCorrection,datosOriginalesCodigosPais)
-#el <- localizeErrors(rulesCorrection,Datos_estudio)
-corrections <- correctWithRules(rulesCorrection,Datos_estudio)
-Datos_estudio <- corrections$corrected
-Datos_estudioSinPaisNiAño = subset(Datos_estudio, select = -c(Pais,Año) )
-
-#el2 <- localizeErrors(rulesCorrection,Life_Expectancy_Data)
-corrections2 <- correctWithRules(rulesCorrection,Life_Expectancy_Data)
-Life_Expectancy_Data <- corrections2$corrected
-Life_Expectancy_DataSinPaisNiAño = subset(Life_Expectancy_Data, select = -c(Pais,Año) )
+if(!file.exists(paste(pathDatos,"Life_Expectancy_Data_Corregidos.csv",sep=""))) {
+    rulesCorrection <- correctionRules(paste(pathDatos,"corrections.txt",sep=""))
+    #ve <- violatedEdits(rulesCorrection,datosOriginalesCodigosPais)
+    #el <- localizeErrors(rulesCorrection,Datos_estudio)
+    corrections <- correctWithRules(rulesCorrection,Datos_estudio)
+    Datos_estudio <- corrections$corrected
+    Datos_estudioSinPaisNiAño = subset(Datos_estudio, select = -c(Pais,Año) )
+    
+    #el2 <- localizeErrors(rulesCorrection,Life_Expectancy_Data)
+    corrections2 <- correctWithRules(rulesCorrection,Life_Expectancy_Data)
+    Life_Expectancy_Data <- corrections2$corrected
+    Life_Expectancy_DataSinPaisNiAño = subset(Life_Expectancy_Data, select =-c(Pais,Año))
+    
+} 
 
 ```
 
 ```{r}
+library(DataExplorer)
 introduce(Datos_estudioSinPaisNiAño)
 ```
+
+```{r}
+rulesCorrectionRanges <- correctionRules(paste(pathDatos,"rulesAsignacionNAs.txt",sep=""))
+corrections3 <- correctWithRules(rulesCorrectionRanges,Datos_estudio)
+Datos_estudio <- corrections3$corrected
+
+corrections4 <- correctWithRules(rulesCorrectionRanges,Life_Expectancy_Data)
+Life_Expectancy_Data <- corrections4$corrected
+
+write.csv(Datos_estudio, "datos_practica_Corregidos.csv")
+write.csv(Datos_estudio, "Life_Expectancy_Data_Corregidos.csv")
+
+```
+
 
 
 ```{r}
