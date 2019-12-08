@@ -1,0 +1,57 @@
+Grado_Desarrollo %in% c('Developing','Developed')
+Esperanza_Vida >= 2
+Tasa_Mortalidad_Adultos >= 2
+Tasa_Mortalidad_Infantil >= 2
+Consumo_Alcohol > 0
+Porcentaje_Gasto_Salud_Per_Capita > 0
+Tasa_Inmunizacion_Hepatitis_B > 0
+Tasa_Sarampion > 0
+Indice_Masa_Corporal > 0
+Tasa_Mortalidad_Menos_5_años > 0
+Tasa_Inmunizacion_Polio > 0
+Porcentaje_Gasto_Salud_PIB > 0
+Tasa_Inmunizacion_Difteria > 0
+Tasa_Mortalidad_Infantil_SIDA > 0
+PIB_Per_Capita > 0
+Poblacion > 0
+Delgadez_Niños_10_19 > 0
+Delgadez_Niños_5_9 > 0
+Indice_Desarrollo_Humano > 0
+años_Escolarizacion_Media >= 0
+Tasa_Mortalidad_Adultos <= 1000
+Tasa_Mortalidad_Infantil <= 1000
+Porcentaje_Gasto_Salud_Per_Capita <= 100
+Tasa_Inmunizacion_Hepatitis_B <= 100
+Tasa_Sarampion <= 100
+Indice_Masa_Corporal <= 40
+Tasa_Mortalidad_Menos_5_años <= 1000
+Tasa_Inmunizacion_Polio <= 100
+Porcentaje_Gasto_Salud_PIB <= 100
+Tasa_Inmunizacion_Difteria <= 100
+Tasa_Mortalidad_Infantil_SIDA <= 1000
+Delgadez_Niños_10_19 <= 100
+Delgadez_Niños_5_9 <= 100
+Indice_Desarrollo_Humano <= 1
+años_Escolarizacion_Media <= 25
+Poblacion <= 1000000000
+!is.na(region)
+!is.na(group)
+!is.na(Grado_Desarrollo)
+!is.na(Esperanza_Vida)
+!is.na(Tasa_Mortalidad_Adultos)
+!is.na(Tasa_Mortalidad_Infantil)
+!is.na(Porcentaje_Gasto_Salud_Per_Capita)
+!is.na(Tasa_Inmunizacion_Hepatitis_B)
+!is.na(Tasa_Sarampion)
+!is.na(Indice_Masa_Corporal)
+!is.na(Tasa_Mortalidad_Menos_5_años)
+!is.na(Tasa_Inmunizacion_Polio)
+!is.na(Porcentaje_Gasto_Salud_PIB)
+!is.na(Tasa_Inmunizacion_Difteria)
+!is.na(Tasa_Mortalidad_Infantil_SIDA)
+!is.na(PIB_Per_Capita)
+!is.na(Poblacion)
+!is.na(Delgadez_Niños_10_19)
+!is.na(Delgadez_Niños_5_9)
+!is.na(Indice_Desarrollo_Humano)
+!is.na(años_Escolarizacion_Media)

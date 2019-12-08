@@ -8,7 +8,10 @@ output: html_document
 
 Antes de proceder a realizar la práctica vamos a separar los datos de validación del resto. Para ello vamos a leer el archivo y vamos a filtrar los datos del último año y los vamos a guardar en un dataset llamado Validación. El resto de datos los utilizaremos durante la práctica y llamaremos a ese csv datos_practica.
 ```{r}
-Life_Expectancy_Data <- read.csv("/media/anabanana/TOSHIBA EXT/Master/T1/FundamentosAnalisisDatos/4.MétodosAnálisisDatos/Practica/Life_Expectancy_Data.csv")
+
+pathDatos = '/mnt/c/Users/msalc/Qsync/docmaster/curso/fundamentosAnalisisDatos/practicaModelado/MetodosAnalisisDatos/'
+paste(c(pathDatos,"Life_Expectancy_Data.csv"),sep="")
+Life_Expectancy_Data <- read.csv(paste(pathDatos,"Life_Expectancy_Data.csv",sep=""))
 
 Validacion <- subset(Life_Expectancy_Data, Year== 2015)
 write.csv(Validacion, "validación.csv")
@@ -26,9 +29,181 @@ https://github.com/AnaFernandezCruz/MetodosAnalisisDatos
 
 2. Definición de objetivos.
 
+  La presente práctica intentará crear un modelo de regresión lineal múltiple para un dataset con las siguientes características. La variable que se intentará inferir será la esperanza de vida en el conjunto de países existentes en el Dataset. Los campos que tiene el dataset para son los siguientes (tras un proceso de renombrado que se realizará en el apartado primero de esta práctica):
+  
+```{r eval=TRUE}
+
+library(kableExtra)
+library(htmltools)
+
+
+columna <- c(
+'Pais',
+'Año',
+'Grado_Desarrollo',
+'Esperanza_Vida',
+'Tasa_Mortalidad_Adultos',
+'Tasa_Mortalidad_Infantil',
+'Consumo_Alcohol',
+'Porcentaje_Gasto_Salud_Per_Capita',
+'Tasa_Inmunizacion_Hepatitis_B',
+'Tasa_Sarampion',
+'Indice_Masa_Corporal',
+'Tasa_Mortalidad_Menos_5_años',
+'Tasa_Inmunizacion_Polio',
+'Porcentaje_Gasto_Salud_PIB',
+'Tasa_Inmunizacion_Difteria',
+'Tasa_Mortalidad_Infantil_SIDA',
+'PIB_Per_Capita',
+'Poblacion',
+'Delgadez_Niños_10_19',
+'Delgadez_Niños_5_9',
+'Indice_Desarrollo_Humano',
+'años_Escolarizacion_Media'
+)
+
+
+descripcion <- c(
+'Nombre del País',
+'Año en el que se tomó la muestra',
+'Grado de desarrollo del país: 2 posibles valores "" y ""',
+'Esperanza de vida media en años en el país',
+'Tasa de mortalidad en adultos en ambos sexos(en tanto por mil). Se considera adulto a todo aquel individio entre 15 y 60 años',
+'Tasa de mortalidad infantil en ambos sexos(en tanto por mil). Se considera niño a todo aquel que no es adulto',
+'Tasa de consumo de alcohol per cápita medido en litros en adultos de ambos sexos',
+'Gasto en salud como porcentaje del Producto Interior Bruto per cápita (%)',
+'Cobertura de vacunación contra la hepatitis B (HepB) entre los niños de 1 año (%)',
+'Numero de casos de sarampión diagnosticados (en tanto por mil)',
+'Índice de masa corporal promedio de toda la población',
+'Tasa de mortalidad de niños menores de 5 años (en tanto por mil)',
+'Cobertura de vacunación contra la PolioMelitis  entre los niños de 1 año (%)',
+'Gasto del gobierno general en salud como porcentaje del gasto total del gobierno (%)',
+'Cobertura de vacunación contra la Difteria entre los niños de 1 año (%)',
+'Tasa de mortalidad de niños entre 0 y 4 años por SIDA en tanto por mil',
+'Producto Interior bruto per cápita (en USD)',
+'Poblacion del país',
+'Prevalencia de delgadez entre niños y adolescentes de 10 a 19 años (%)',
+'Prevalencia de delgadez entre niños y adolescentes de 5  a 9  años (%)',
+'Índice de Desarrollo Humano en términos de composición del ingreso de los recursos (índice que varía de 0 a 1)',
+'Número de años de escolaridad (años)'
+)
+
+listadoColumnas.data <- data.frame(columna,descripcion)
+
+listadoColumnas.data %>%
+  kable() %>%
+  kable_styling()
+
+```
+  
+  
 
 3. Análisis exploratorio inicial.
 
+  Lo primero que haremos con el dataset es cambiar el nombre a los campos para hacerlos más amigables:
+  
+```{r}
+
+Life_Expectancy_Data = Life_Expectancy_Data %>% 
+  rename(
+    Pais = Country,
+    Año = Year,
+	  Grado_Desarrollo = Status,
+    Esperanza_Vida = Life.expectancy ,
+	  Tasa_Mortalidad_Adultos = Adult.Mortality,
+	Tasa_Mortalidad_Infantil = infant.deaths,
+	Consumo_Alcohol = Alcohol,
+	Porcentaje_Gasto_Salud_Per_Capita = percentage.expenditure,
+	Tasa_Inmunizacion_Hepatitis_B = Hepatitis.B,
+	Tasa_Sarampion = Measles , 
+	Indice_Masa_Corporal = BMI ,
+	Tasa_Mortalidad_Menos_5_años = under.five.deaths ,
+	Tasa_Inmunizacion_Polio = Polio,
+	Porcentaje_Gasto_Salud_PIB = Total.expenditure,
+	Tasa_Inmunizacion_Difteria = Diphtheria , 
+	Tasa_Mortalidad_Infantil_SIDA = HIV.AIDS,
+	PIB_Per_Capita = GDP,
+	Poblacion = Population,
+	Delgadez_Niños_10_19 = thinness..1.19.years,
+	Delgadez_Niños_5_9 = thinness.5.9.years,
+	Indice_Desarrollo_Humano = Income.composition.of.resources,
+	años_Escolarizacion_Media = Schooling
+)
+
+Datos_estudio = Datos_estudio %>% 
+  rename(
+    Pais = Country,
+    Año = Year,
+	  Grado_Desarrollo = Status,
+    Esperanza_Vida = Life.expectancy ,
+	  Tasa_Mortalidad_Adultos = Adult.Mortality,
+	Tasa_Mortalidad_Infantil = infant.deaths,
+	Consumo_Alcohol = Alcohol,
+	Porcentaje_Gasto_Salud_Per_Capita = percentage.expenditure,
+	Tasa_Inmunizacion_Hepatitis_B = Hepatitis.B,
+	Tasa_Sarampion = Measles , 
+	Indice_Masa_Corporal = BMI ,
+	Tasa_Mortalidad_Menos_5_años = under.five.deaths ,
+	Tasa_Inmunizacion_Polio = Polio,
+	Porcentaje_Gasto_Salud_PIB = Total.expenditure,
+	Tasa_Inmunizacion_Difteria = Diphtheria , 
+	Tasa_Mortalidad_Infantil_SIDA = HIV.AIDS,
+	PIB_Per_Capita = GDP,
+	Poblacion = Population,
+	Delgadez_Niños_10_19 = thinness..1.19.years,
+	Delgadez_Niños_5_9 = thinness.5.9.years,
+	Indice_Desarrollo_Humano = Income.composition.of.resources,
+	años_Escolarizacion_Media = Schooling
+)
+  
+```
+  
+
+
+  Lo siguiente que haremos con el dataset cargado originalmente es intentar tratar la columna denominada país pa intentar introducirla dentro del modelo. Debido a que el número de ocurrencias de esta columna es elevado, crearemos dos variables nuevas sintéticas con el continente al que pertenece el país y la zona económica a la que pertenece.  Los valores de estas nuevas variables categóricas serán los siguientes:
+  
+  * region: Europe,Asia,Caribbean,North America,Latin Americ,Oceania
+  * subregion :Australia and New Zealand,Central Asia,Eastern Asia,Eastern Europe
+,Latin America and the Caribbean,Melanesia,Micronesia,Northern Africa,Northern America,Northern Europe,Polynesia,South-eastern Asia,Southern Asia,Southern Europe
+,Sub-Saharan Africa,Western Asia,Western Europe
+  * group:  OCDE,Africa,other 
+  
+ Para realizar este objetivo, realizaremos una "join" entre la columna País y la columna COUNTRY del dataset UN11 incluido en R (mirar despues alguna otra fuente para meter más zonas económicas)
+
+```{r}
+  library(validate)
+  library(validatetools)
+  library(deducorrect)
+  library(alr4)
+
+Life_Expectancy_Data  <-merge(x=Life_Expectancy_Data,y=UN11,by.x =1 , by.y = 0,all.x=TRUE)
+
+Datos_estudio <-merge(x=Datos_estudio,y=UN11,by.x =1 , by.y = 0,all.x=TRUE)
+
+
+```
+
+   Al realizar el "left join" alguno de los países quedaron sin área geográfica asignada.
+   
+```{r}
+
+library(validate)
+library(validatetools)
+library(deducorrect)
+
+rulesCorrection <- correctionRules(paste(pathDatos,"corrections.txt",sep=""))
+#ve <- violatedEdits(rulesCorrection,datosOriginalesCodigosPais)
+#el <- localizeErrors(rulesCorrection,Datos_estudio)
+corrections <- correctWithRules(rulesCorrection,Datos_estudio)
+Datos_estudio <- corrections$corrected
+Datos_estudioSinPaisNiAño = subset(Datos_estudio, select = -c(Pais,Año) )
+
+#el2 <- localizeErrors(rulesCorrection,Life_Expectancy_Data)
+corrections2 <- correctWithRules(rulesCorrection,Life_Expectancy_Data)
+Life_Expectancy_Data <- corrections2$corrected
+Life_Expectancy_DataSinPaisNiAño = subset(Life_Expectancy_Data, select = -c(Pais,Año) )
+
+```
 
 4. Detección, tratamiento e imputación de datos faltantes.
 
