@@ -12,6 +12,8 @@ Para el control de versiones utilizaremos github. El repositorio se encuentra en
 
 2. Definición de objetivos (1 punto)
 
+La presente práctica intentará crear un modelo de regresión lineal múltiple para un dataset con las siguientes características. La variable que se intentará inferir será la esperanza de vida
+
 
 3. Análisis exploratorio inicial (1 punto)
 
@@ -21,6 +23,7 @@ Antes de empezar a realizar la práctica tenemos que cargar los dataset incluido
 
 
 library(readr)
+library(plyr)
 
 pathDatos = './Dataset/'
 pathLocal = './'
@@ -30,8 +33,18 @@ fileDatosPK = paste(pathDatos,"sample_submission.csv",sep="", collapse = NULL)
 fileDatosTrainTest = paste(pathLocal,"train_test.csv",sep="", collapse = NULL)
 fileDatosValidacion = paste(pathLocal,"validacion.csv",sep="", collapse = NULL)
 
+borra_columnas_muchos_faltantes = TRUE
+borra_columnas_incomodas = FALSE
+columnas_borrar_faltantes <- c('FireplaceQu','Fence','Alley','MiscFeature','PoolQC','GarageType','GarageCond','GarageQual','GarageFinish','GarageYrBit','LoftFrontage')
+columnas_borrar_incomodas <- c('BsmtFinType1','LowQualFinSF','MasVnrArea','BsmtHalfBath','EnclosedPorch','KitchenAbvGr','MiscVal','PoolArea','ScreenPorch','Utilities','Condition2','RoofMalt','Heating','Street')
+
+
 if(!file.exists(fileDatosTrainTest)) {
 
+ 
+
+  
+  
     train_kaggle <- read_csv(fileTrain)
     head(train_kaggle)
     
@@ -42,13 +55,27 @@ if(!file.exists(fileDatosTrainTest)) {
     head(claves_primarias)
     
     #Mergeamos el archivo de train y test ya que tienen las mismas columnas.
-    library(plyr)
+    
     test_kaggle <- join(test_kaggle, claves_primarias, by = c("Id", "Id"), type = "inner")
     full_dataset <- union(train_kaggle, test_kaggle)
     head(full_dataset)
     
     dt = sort(sample(nrow(full_dataset), nrow(full_dataset)*.1))
 
+    if(borra_columnas_muchos_faltantes) {
+    
+      #full_dataset = subset( full_dataset, select = -columnas_borrar_faltantes)
+      full_dataset <- full_dataset %>% select(-one_of(columnas_borrar_faltantes))
+    
+    }
+  
+    if(borra_columnas_incomodas) {
+    
+      #full_dataset = subset( full_dataset, select = -columnas_borrar_faltantes)
+      full_dataset <- full_dataset %>% select(-one_of(columnas_borrar_incomodas))
+    
+    }
+    
     validacion<-full_dataset[dt,]
     write.csv(validacion, fileDatosValidacion,row.names=F)
     
@@ -68,9 +95,50 @@ test<-train_test[-dt,]
 Una vez tenemos los 3 csv unidos en uno, procedemos a separar los datos de validación.
 
 ```{r}
-
-
+library(DataExplorer)
+introduce(test)
 ```
+
+```{r}
+plot_intro(test)
+```
+
+```{r}
+library(skimr)
+library(pander)
+skim(test)  %>% pander()
+```
+
+```{r}
+library(VIM)
+aggr(test)
+```
+
+
+```{r}
+missing_data <- plot_missing(test)
+```
+
+
+```{r}
+# DataExplorer::create_report(datosOriginales) 
+plot_bar(test)
+```
+
+
+```{r}
+test %>% plot_histogram()
+```
+
+```{r}
+test %>% plot_qq(sampled_rows = 1000L)
+```
+
+
+```{r}
+plot_correlation(na.omit(test), maxcat = 5L)
+```
+
 
 ```{r}
 var_discretas <- c('BsmtFullBath','BsmtHalfBath','FullBath','HalfBath','BedroomAbvGr','KitchenAbvGr','TotRmsAbvGrd',
@@ -81,12 +149,15 @@ var_continuas <- c('LotFrontage','LotArea','MasVnrArea','BsmtFinSF1','BsmtFinSF2
 var_ordinales <- c('LotShape','Utilities','LandSlope','OverallQual','OverallCond','ExterQual','ExterCond',
                'BsmtQual','BsmtCond','BsmtExposure','BsmtFinType1','BsmtFinType2','HeatingQC','CentralAir',
                'Electrical','KitchenQual','Functional','FireplaceQu','GarageFinish','GarageQual','GarageCond',
-               'PavedDrive','PoolQC','Fence'])
+               'PavedDrive','PoolQC','Fence')
 
 var_nominales <- c('MSSubClass','MSZoning','Street','Alley','LandContour','LotConfig','Neighborhood',
                'Condition1','Condition2','BldgType','HouseStyle','RoofStyle','RoofMatl','Exterior1st',
                'Exterior2nd','MasVnrType','Foundation','Heating','GarageType','MiscFeature',
                'SaleType','SaleCondition')
+
+
+
 
 ```
 
