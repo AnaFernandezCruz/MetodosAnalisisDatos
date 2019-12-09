@@ -19,23 +19,30 @@ Antes de empezar a realizar la práctica tenemos que cargar los dataset incluido
 
 ```{r message=FALSE, warning=FALSE}
 library(readr)
-train_kaggle <- read_csv("~/Master/T1/FundamentosAnalisisDatos/4.MétodosAnálisisDatos/Practica/Dataset/train.csv")
+
+pathDatos = '/mnt/c/Users/msalc/Qsync/docmaster/curso/fundamentosAnalisisDatos/practicaModelado2/MetodosAnalisisDatos/Dataset/'
+pathLocal = '/mnt/c/Users/msalc/Qsync/docmaster/curso/fundamentosAnalisisDatos/practicaModelado2/MetodosAnalisisDatos/'
+fileTrain = paste(pathDatos,"train.csv",sep="", collapse = NULL)
+fileTest = paste(pathDatos,"test.csv",sep="", collapse = NULL)
+fileDatosPK = paste(pathDatos,"sample_submission.csv",sep="", collapse = NULL)
+fileDatosTrainTest = paste(pathLocal,"train_test.csv",sep="", collapse = NULL)
+fileDatosValidacion = paste(pathLocal,"validacion.csv",sep="", collapse = NULL)
+
+train_kaggle <- read_csv(fileTrain)
 head(train_kaggle)
 
-test_kaggle <- read_csv("~/Master/T1/FundamentosAnalisisDatos/4.MétodosAnálisisDatos/Practica/Dataset/test.csv")
+test_kaggle <- read_csv(fileTest)
 head(test_kaggle)
 
-claves_primarias <- read_csv("~/Master/T1/FundamentosAnalisisDatos/4.MétodosAnálisisDatos/Practica/Dataset/sample_submission.csv")
+claves_primarias <- read_csv(fileDatosPK)
 head(claves_primarias)
 
 #Mergeamos el archivo de train y test ya que tienen las mismas columnas.
-train_test_kaggle <-merge(train_kaggle, test_kaggle)
-head(train_test)
-
-#Una vez hemos hecho hecho, hacemos un join con las claves primarias.
 library(plyr)
-full_dataset <- join(train_test_kaggle, claves_primarias, by = c("Id", "SalePrice"), type = "inner")
+test_kaggle <- join(test_kaggle, claves_primarias, by = c("Id", "Id"), type = "inner")
+full_dataset <- union(train_kaggle, test_kaggle)
 head(full_dataset)
+
 ```
 
 Una vez tenemos los 3 csv unidos en uno, procedemos a separar los datos de validación.
@@ -44,19 +51,21 @@ Una vez tenemos los 3 csv unidos en uno, procedemos a separar los datos de valid
 dt = sort(sample(nrow(full_dataset), nrow(full_dataset)*.1))
 
 validacion<-full_dataset[dt,]
-write.csv(validacion, "validacion.csv")
+write.csv(validacion, fileDatosValidacion,row.names=F)
 
 train_test<-full_dataset[-dt,]
-write.csv(train_test, "train_test.csv")
+write.csv(train_test, fileDatosTrainTest,row.names=F)
 
 #Si queremos dividir el csv de train y test en dos csv independientes, haremos lo siguiente
-train_test <- read_csv("~/Master/T1/FundamentosAnalisisDatos/4.MétodosAnálisisDatos/Practica/Dataset/train_test.csv")
+train_test <- read_csv(fileDatosTrainTest)
 dt = sort(sample(nrow(train_test), nrow(train_test)*.7))
 
 train<-train_test[dt,]
 test<-train_test[-dt,]
 
 ```
+
+
 
 4. Detección, tratamiento e imputación de datos faltantes (1 punto)
 5. Transformaciones de variables cuantitativas (1 punto)
