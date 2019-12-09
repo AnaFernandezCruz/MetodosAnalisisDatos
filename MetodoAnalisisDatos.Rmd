@@ -18,53 +18,77 @@ Para el control de versiones utilizaremos github. El repositorio se encuentra en
 Antes de empezar a realizar la práctica tenemos que cargar los dataset incluidos en la página de Kaggle, unificarlos en un solo dataset y dividirlo en train/test/validación. Para ello:
 
 ```{r message=FALSE, warning=FALSE}
+
+
 library(readr)
 
-pathDatos = '/mnt/c/Users/msalc/Qsync/docmaster/curso/fundamentosAnalisisDatos/practicaModelado2/MetodosAnalisisDatos/Dataset/'
-pathLocal = '/mnt/c/Users/msalc/Qsync/docmaster/curso/fundamentosAnalisisDatos/practicaModelado2/MetodosAnalisisDatos/'
+pathDatos = './Dataset/'
+pathLocal = './'
 fileTrain = paste(pathDatos,"train.csv",sep="", collapse = NULL)
 fileTest = paste(pathDatos,"test.csv",sep="", collapse = NULL)
 fileDatosPK = paste(pathDatos,"sample_submission.csv",sep="", collapse = NULL)
 fileDatosTrainTest = paste(pathLocal,"train_test.csv",sep="", collapse = NULL)
 fileDatosValidacion = paste(pathLocal,"validacion.csv",sep="", collapse = NULL)
 
-train_kaggle <- read_csv(fileTrain)
-head(train_kaggle)
+if(!file.exists(fileDatosTrainTest)) {
 
-test_kaggle <- read_csv(fileTest)
-head(test_kaggle)
+    train_kaggle <- read_csv(fileTrain)
+    head(train_kaggle)
+    
+    test_kaggle <- read_csv(fileTest)
+    head(test_kaggle)
+    
+    claves_primarias <- read_csv(fileDatosPK)
+    head(claves_primarias)
+    
+    #Mergeamos el archivo de train y test ya que tienen las mismas columnas.
+    library(plyr)
+    test_kaggle <- join(test_kaggle, claves_primarias, by = c("Id", "Id"), type = "inner")
+    full_dataset <- union(train_kaggle, test_kaggle)
+    head(full_dataset)
+    
+    dt = sort(sample(nrow(full_dataset), nrow(full_dataset)*.1))
 
-claves_primarias <- read_csv(fileDatosPK)
-head(claves_primarias)
+    validacion<-full_dataset[dt,]
+    write.csv(validacion, fileDatosValidacion,row.names=F)
+    
+    train_test<-full_dataset[-dt,]
+    write.csv(train_test, fileDatosTrainTest,row.names=F)
+  
+}
 
-#Mergeamos el archivo de train y test ya que tienen las mismas columnas.
-library(plyr)
-test_kaggle <- join(test_kaggle, claves_primarias, by = c("Id", "Id"), type = "inner")
-full_dataset <- union(train_kaggle, test_kaggle)
-head(full_dataset)
+train_test <- read_csv(fileDatosTrainTest)
+set.seed(55)
+dt = sort(sample(nrow(train_test), nrow(train_test)*.7))
+train<-train_test[dt,]
+test<-train_test[-dt,]
 
 ```
 
 Una vez tenemos los 3 csv unidos en uno, procedemos a separar los datos de validación.
 
 ```{r}
-dt = sort(sample(nrow(full_dataset), nrow(full_dataset)*.1))
 
-validacion<-full_dataset[dt,]
-write.csv(validacion, fileDatosValidacion,row.names=F)
-
-train_test<-full_dataset[-dt,]
-write.csv(train_test, fileDatosTrainTest,row.names=F)
-
-#Si queremos dividir el csv de train y test en dos csv independientes, haremos lo siguiente
-train_test <- read_csv(fileDatosTrainTest)
-dt = sort(sample(nrow(train_test), nrow(train_test)*.7))
-
-train<-train_test[dt,]
-test<-train_test[-dt,]
 
 ```
 
+```{r}
+var_discretas <- c('BsmtFullBath','BsmtHalfBath','FullBath','HalfBath','BedroomAbvGr','KitchenAbvGr','TotRmsAbvGrd',
+                'Fireplaces','GarageCars','GarageYrBlt','YearBuilt','YearRemodAdd','YrSold','MoSold')
+
+var_continuas <- c('LotFrontage','LotArea','MasVnrArea','BsmtFinSF1','BsmtFinSF2','BsmtUnfSF','TotalBsmtSF','1stFlrSF','2ndFlrSF','LowQualFinSF','GrLivArea','GarageArea','WoodDeckSF','OpenPorchSF','EnclosedPorch', '3SsnPorch','ScreenPorch','PoolArea','MiscVal','SalePrice')
+
+var_ordinales <- c('LotShape','Utilities','LandSlope','OverallQual','OverallCond','ExterQual','ExterCond',
+               'BsmtQual','BsmtCond','BsmtExposure','BsmtFinType1','BsmtFinType2','HeatingQC','CentralAir',
+               'Electrical','KitchenQual','Functional','FireplaceQu','GarageFinish','GarageQual','GarageCond',
+               'PavedDrive','PoolQC','Fence'])
+
+var_nominales <- c('MSSubClass','MSZoning','Street','Alley','LandContour','LotConfig','Neighborhood',
+               'Condition1','Condition2','BldgType','HouseStyle','RoofStyle','RoofMatl','Exterior1st',
+               'Exterior2nd','MasVnrType','Foundation','Heating','GarageType','MiscFeature',
+               'SaleType','SaleCondition')
+
+```
 
 
 4. Detección, tratamiento e imputación de datos faltantes (1 punto)
