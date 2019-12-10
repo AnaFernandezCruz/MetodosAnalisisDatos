@@ -33,7 +33,7 @@ fileDatosPK = paste(pathDatos,"sample_submission.csv",sep="", collapse = NULL)
 fileDatosTrainTest = paste(pathLocal,"train_test.csv",sep="", collapse = NULL)
 fileDatosValidacion = paste(pathLocal,"validacion.csv",sep="", collapse = NULL)
 
-borra_columnas_muchos_faltantes = TRUE
+borra_columnas_muchos_faltantes = FALSE
 borra_columnas_incomodas = FALSE
 columnas_borrar_faltantes <- c('FireplaceQu','Fence','Alley','MiscFeature','PoolQC','GarageType','GarageCond','GarageQual','GarageFinish','GarageYrBit','LoftFrontage')
 columnas_borrar_incomodas <- c('BsmtFinType1','LowQualFinSF','MasVnrArea','BsmtHalfBath','EnclosedPorch','KitchenAbvGr','MiscVal','PoolArea','ScreenPorch','Utilities','Condition2','RoofMalt','Heating','Street')
@@ -101,6 +101,31 @@ introduce(full_dataset_completo)
 ```{r}
 plot_intro(full_dataset_completo)
 ```
+
+ Vemos que este gráfico muestra en los valores de "complete rows" un valor del 0%, lo cuál parece indicar un problema con alguna columna en particular.  Lo que observamos es que el valor NA es un valor de algunas de las columnas válido, con lo que habría que corregir esto para estas columnas y volver a hacer el análisis. Supondremos que para estas columnas no existe ningún valor genuinamente en blanco
+
+   Alley: NA 	No alley access
+   BsmtQual: NA	No Basement
+   BsmtCond: NA	No Basement
+   BsmtExposure: NA	No Basement
+   BsmtFinType1: NA	No Basement
+   BsmtFinType2:  NA	No Basement
+   BsmtFinType2:  NA	No Basement
+   GarageType: NA	No Garage
+   GarageFinish: NA	No Garage
+   GarageQual: : NA	No Garage
+   GarageQual: : NA	No Garage
+   PoolQC:  NA	No Pool
+   Fence:  NA	No Fence
+   MiscFeature:   NA	None
+   
+```{r message=FALSE, warning=FALSE}
+
+  columnas_sustitucion_nas <- c(Alley,BsmtQual,BsmtCond,BsmtExposure,BsmtFinType1,BsmtFinType2)
+
+
+```
+   
 
  Las variables que nos encontraremos en el dataset son las siguientes:
   * MSSubClass: la clase de construcción
