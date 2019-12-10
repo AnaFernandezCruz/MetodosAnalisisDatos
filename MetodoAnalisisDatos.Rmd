@@ -38,9 +38,6 @@ borra_columnas_incomodas = FALSE
 columnas_borrar_faltantes <- c('FireplaceQu','Fence','Alley','MiscFeature','PoolQC','GarageType','GarageCond','GarageQual','GarageFinish','GarageYrBit','LoftFrontage')
 columnas_borrar_incomodas <- c('BsmtFinType1','LowQualFinSF','MasVnrArea','BsmtHalfBath','EnclosedPorch','KitchenAbvGr','MiscVal','PoolArea','ScreenPorch','Utilities','Condition2','RoofMalt','Heating','Street')
 
-
-if(!file.exists(fileDatosTrainTest)) {
-
     train_kaggle <- read_csv(fileTrain)
     head(train_kaggle)
     
@@ -52,7 +49,7 @@ if(!file.exists(fileDatosTrainTest)) {
     
     #Mergeamos el archivo de train y test ya que tienen las mismas columnas.
     
-    test_kaggle <- join(test_kaggle, claves_primarias, by = c("Id", "Id"), type = "inner")
+    test_kaggle <- dplyr::inner_join(x=test_kaggle,y=claves_primarias,by = c('Id','Id'))   
     full_dataset <- dplyr::union(train_kaggle, test_kaggle)
     full_dataset_completo <- dplyr::union(train_kaggle, test_kaggle)
     #head(full_dataset)
@@ -62,24 +59,26 @@ if(!file.exists(fileDatosTrainTest)) {
     if(borra_columnas_muchos_faltantes) {
     
       #full_dataset = subset( full_dataset, select = -columnas_borrar_faltantes)
-      full_dataset <- full_dataset %>% select(-one_of(columnas_borrar_faltantes))
+      full_dataset <- full_dataset %>% dplyr::select(-one_of(columnas_borrar_faltantes))
     
     }
   
     if(borra_columnas_incomodas) {
-    
       #full_dataset = subset( full_dataset, select = -columnas_borrar_faltantes)
       full_dataset <- full_dataset %>% select(-one_of(columnas_borrar_incomodas))
-    
     }
     
     validacion<-full_dataset[dt,]
-    write.csv(validacion, fileDatosValidacion,row.names=F)
+    if(!file.exists(fileDatosTrainTest)) {
+      write.csv(validacion, fileDatosValidacion,row.names=F)
+    }
     
     train_test<-full_dataset[-dt,]
-    write.csv(train_test, fileDatosTrainTest,row.names=F)
+    if(!file.exists(fileDatosTrainTest)) {
+      write.csv(train_test, fileDatosTrainTest,row.names=F)
+    }
   
-}
+
 
 train_test <- read_csv(fileDatosTrainTest)
 set.seed(55)
@@ -102,7 +101,7 @@ introduce(full_dataset_completo)
 plot_intro(full_dataset_completo)
 ```
 
- Vemos que este gráfico muestra en los valores de "complete rows" un valor del 0%, lo cuál parece indicar un problema con alguna columna en particular.  Lo que observamos es que el valor NA es un valor de algunas de las columnas válido, con lo que habría que corregir esto para estas columnas y volver a hacer el análisis. Supondremos que para estas columnas no existe ningún valor genuinamente en blanco
+ Vemos que este gráfico muestra en los valores de "complete rows" un valor del 0%, lo cuál parece indicar un problema con alguna columna en particular.  Lo que observamos es que el valor NA es un valor de algunas de las columnas válido, con lo que habría que corregir esto para estas columnas y volver a hacer el análisis. Supondremos que para estas columnas no existe ningún valor genuinamente en blanco:
 
    Alley: NA 	No alley access
    BsmtQual: NA	No Basement
@@ -110,19 +109,53 @@ plot_intro(full_dataset_completo)
    BsmtExposure: NA	No Basement
    BsmtFinType1: NA	No Basement
    BsmtFinType2:  NA	No Basement
-   BsmtFinType2:  NA	No Basement
    GarageType: NA	No Garage
    GarageFinish: NA	No Garage
    GarageQual: : NA	No Garage
-   GarageQual: : NA	No Garage
+   GarageCond: : NA	No Garage
    PoolQC:  NA	No Pool
    Fence:  NA	No Fence
    MiscFeature:   NA	None
    
 ```{r message=FALSE, warning=FALSE}
 
-  columnas_sustitucion_nas <- c(Alley,BsmtQual,BsmtCond,BsmtExposure,BsmtFinType1,BsmtFinType2)
+  columnas_sustitucion_nas <- c('Alley','BsmtQual','BsmtCond','BsmtExposure','BsmtFinType1','BsmtFinType2','GarageType','GarageFinish','GarageQual','GarageCond','PoolQC','Fence','MiscFeature','FireplaceQu')
 
+
+for (i in columnas_sustitucion_nas) {
+ full_dataset <- full_dataset %>%
+    dplyr::mutate( !!i
+         := replace(!!i,
+                   is.na(!!i),
+                   'NA'))
+ full_dataset_completo <- full_dataset_completo %>%
+    dplyr::mutate( !!i
+         := replace(!!i,
+                   is.na(!!i),
+                   'NA'))
+ 
+  train_test <- train_test %>%
+    dplyr::mutate( !!i
+         := replace(!!i,
+                   is.na(!!i),
+                   'NA'))
+  
+  
+    train <- train %>%
+    dplyr::mutate( !!i
+         := replace(!!i,
+                   is.na(!!i),
+                   'NA'))
+  
+ 
+      test <- test  %>%
+    dplyr::mutate( !!i
+         := replace(!!i,
+                   is.na(!!i),
+                   'NA'))
+  
+    
+}
 
 ```
    
@@ -217,7 +250,7 @@ skim(full_dataset_completo)  %>% pander()
 
 ```{r}
 library(VIM)
-aggr(full_dataset_completo)
+aggr(train)
 ```
 
 
@@ -242,11 +275,13 @@ test %>% plot_qq(sampled_rows = 1000L)
 
 
 ```{r}
-plot_correlation(na.omit(full_dataset_completo), maxcat = 5L)
+library(ggplot2)
+splitDataset <- split_columns(full_dataset_completo, binary_as_factor = FALSE)
+plot_correlation(na.omit(splitDataset$continuous), type = "c" ,maxcat = 5L,theme_config = list(legend.position = "bottom", axis.text.x =element_text(angle = 90)))
 ```
 
-
 ```{r}
+
 var_discretas <- c('BsmtFullBath','BsmtHalfBath','FullBath','HalfBath','BedroomAbvGr','KitchenAbvGr','TotRmsAbvGrd','Fireplaces','GarageCars','GarageYrBlt','YearBuilt','YearRemodAdd','YrSold','MoSold')
 
 var_continuas <- c('LotFrontage','LotArea','MasVnrArea','BsmtFinSF1','BsmtFinSF2','BsmtUnfSF','TotalBsmtSF','1stFlrSF','2ndFlrSF','LowQualFinSF','GrLivArea','GarageArea','WoodDeckSF','OpenPorchSF','EnclosedPorch', '3SsnPorch','ScreenPorch','PoolArea','MiscVal','SalePrice')
@@ -258,10 +293,169 @@ var_nominales <- c('MSSubClass','MSZoning','Street','Alley','LandContour','LotCo
 
 
 
+library(corrr)
+corrmatrix <-corrr::correlate(na.omit(full_dataset_completo %>% dplyr::select(var_continuas)))
+corrmatrix2 <-corrr::correlate(na.omit(full_dataset_completo %>% dplyr::select(var_discretas)))
+
+rplot(corrmatrix, legend = TRUE, shape = 16)
+network_plot(corrmatrix)
 
 ```
+
+```{r}
+
+
+```
+
+```{r}
+outlier_values <- boxplot.stats(full_dataset_completo$SalePrice )$out
+boxplot(full_dataset_completo$SalePrice, main="Pressure Height", boxwex=0.1)
+mtext(paste("Outliers: ", paste(outlier_values, collapse=", ")), cex=0.6)
+outlier_values
+
+```
+
 4. Detección, tratamiento e imputación de datos faltantes (1 punto)
 5. Transformaciones de variables cuantitativas (1 punto)
+
+```{r}
+
+#MSSubClass: 
+leveslMSubClass <- c(
+"1-STORY 1946 & NEWER ALL STYLES",
+"1-STORY 1945 & OLDER",
+"1-STORY W/FINISHED ATTIC ALL AGES",
+"1-1/2 STORY - UNFINISHED ALL AGES",
+"50	1-1/2 STORY FINISHED ALL AGES",
+"60	2-STORY 1946 & NEWER",
+"2-STORY 1945 & OLDER",
+"2-1/2 STORY ALL AGES",
+"SPLIT OR MULTI-LEVEL",
+"85	SPLIT FOYER",
+"DUPLEX - ALL STYLES AND AGES",
+"1-STORY PUD (Planned Unit Development) - 1946 & NEWER",
+"1-1/2 STORY PUD - ALL AGES",
+"160	2-STORY PUD - 1946 & NEWER",
+"PUD - MULTILEVEL - INCL SPLIT LEV/FOYER",
+"2 FAMILY CONVERSION - ALL STYLES AND AGES"
+)
+
+#OverallQual, OverallCond (dejarlas como estan)
+levesl1_10 <- c("Very Poor","Poor","Fair","Below Average","Average","Above Average","Good","Very Good","Excellent","Very Excellent")
+
+#ExterQual , ExterCond , HeatingQC, KitchenQual,GarageQual,GarageCond
+return_position1_5 <- function(elements) {
+    levesl1_5 <- c('Po','Fa','TA','Gd','Ex')
+    pos <- match(elements,levesl1_5)
+    elem <- which(levesl1_5 %in% elements)
+    return(levesl1_5[elem])
+}
+
+
+#BsmtQual,BsmtCond,FireplaceQu
+return_position1_6 <- function(elements) {
+    levesl1_6 <- c('NA','Po','Fa','TA','Gd','Ex')
+    pos <- match(elements,levesl1_6)
+    elem <- which(levesl1_6 %in% elements)
+    return(levesl1_6[elem])
+}
+
+
+#BsmtExposure
+return_position1_5_B <- function(elements) {
+    levesl1_5_B <- c('NA','No','Mn','Av','Gd')
+    pos <- match(elements,levesl1_5_B)
+    elem <- which(levesl1_5_B %in% elements)
+    return(levesl1_5_B[elem])
+}
+
+
+#BsmtFinType1 , BsmtFinType2
+return_position1_7 <- function(elements) {
+    levesl1_7 <- c('NA','Unf','LwQ','Rec','BLQ','ALQ','GLQ')
+    pos <- match(elements,levesl1_7)
+    elem <- which(levesl1_7 %in% elements)
+    return(levesl1_7[elem])
+}
+
+#CentralAir
+levesl_2 <- c('N','Y')  
+
+#GarageFinish
+return_levels_garage <- function(elements) {
+    levels_garage <-c('NA','Unf','RFn','Fin')
+    pos <- match(elements,levels_garage)
+    elem <- which(levels_garage %in% elements)
+    return(levels_garage[elem])
+}
+
+
+# PoolQC
+return_levesl_poolQC <- function(elements) {
+    levesl_poolQC <- -c('NA','Fa','TA','Gd','Ex')
+    pos <- match(elements,levesl_poolQC)
+    elem <- which(llevesl_poolQC %in% elements)
+    return(levesl_poolQC[elem])
+}
+
+
+library(forcats)
+
+      #OverallCond
+      train <- train %>% dplyr::mutate( ExterQual:=fct_relevel(ExterQual,return_position1_5))
+      test <- test %>% dplyr::mutate( ExterQual:=fct_relevel(ExterQual,return_position1_5))
+      #ExterCond , 
+      train <- train %>% dplyr::mutate( ExterCond := fct_relevel(ExterCond,return_position1_5))
+      test <- test %>% dplyr::mutate( ExterCond := fct_relevel(ExterCond,return_position1_5))
+      #HeatingQC, 
+      train <- train %>% dplyr::mutate( HeatingQC := fct_relevel(HeatingQC,return_position1_5))
+      test <-  test %>% dplyr::mutate( HeatingQC := fct_relevel(HeatingQC,return_position1_5))
+      #KitchenQual,
+      train <- train %>% dplyr::mutate( KitchenQual := fct_relevel(KitchenQual,return_position1_5))
+      test <-  test %>% dplyr::mutate( KitchenQual := fct_relevel(KitchenQual,return_position1_5))
+      #GarageQual,
+      train <- train %>% dplyr::mutate( GarageQual := fct_relevel(GarageQual,return_position1_5))
+      test <-  test %>% dplyr::mutate( GarageQual := fct_relevel(GarageQual,return_position1_5))
+      #GarageCond
+      train <- train %>% dplyr::mutate( GarageCond := fct_relevel(GarageCond,return_position1_5))
+      test <-  test %>% dplyr::mutate( GarageCond := fct_relevel(GarageCond,return_position1_5))
+      #BsmtQual
+      train <- train %>% dplyr::mutate( BsmtQual := fct_relevel(BsmtQual,return_position1_6))
+      test <-  test %>% dplyr::mutate( BsmtQual := fct_relevel(BsmtQual,return_position1_6))
+      #BsmtCond,
+      train <- train %>% dplyr::mutate( BsmtCond := fct_relevel(BsmtCond,return_position1_6))
+      test <- test %>% dplyr::mutate( BsmtCond := fct_relevel(BsmtCond,return_position1_6))
+      #FireplaceQu
+      train <- train %>% dplyr::mutate(FireplaceQu := fct_relevel(FireplaceQu,return_position1_6))
+      test <-  test %>% dplyr::mutate(FireplaceQu := fct_relevel(FireplaceQu,return_position1_6))
+      #BsmtExposure
+      train <- train %>% dplyr::mutate( BsmtExposure := fct_relevel(BsmtExposure,return_position1_5_B))
+      test <-  test %>% dplyr::mutate( BsmtExposure := fct_relevel(BsmtExposure,return_position1_5_B))
+      #BsmtFinType1 
+      train <- train %>% dplyr::mutate( BsmtFinType1 := fct_relevel(BsmtFinType1,return_position1_7))
+      test <-  test %>% dplyr::mutate( BsmtFinType1 := fct_relevel(BsmtFinType1,return_position1_7))
+      #BsmtFinType2
+      train <- train %>% dplyr::mutate( BsmtFinType1 := fct_relevel(BsmtFinType2,return_position1_7))
+      test <-  test %>% dplyr::mutate( BsmtFinType1 := fct_relevel(BsmtFinType2,return_position1_7))
+     #GarageFinish
+      #train <- train %>% dplyr::mutate( GarageFinish := fct_relevel(GarageFinish,return_levels_garage))
+      #test <-  test %>% dplyr::mutate( GarageFinish := fct_relevel(GarageFinish,return_levels_garage))
+      # PoolQC
+      #train <- train %>% dplyr::mutate( PoolQC := fct_relevel(PoolQC,return_levesl_poolQC))
+      #test <-  test %>% dplyr::mutate( PoolQC := fct_relevel(PoolQC,return_levesl_poolQC))
+
+      
+      
+  #for(i in var_nominales) {
+  #   train <- train %>% dplyr::mutate( !!i := factor(!!i))
+  #}
+      
+      
+# YearBuilt: a ver que hacemos con esta
+# YearRemodAdd: y esta lo mismo
+      
+
+```
 
 
 
