@@ -23,7 +23,7 @@ Antes de empezar a realizar la práctica tenemos que cargar los dataset incluido
 
 
 library(readr)
-library(plyr)
+library(dplyr)
 
 pathDatos = './Dataset/'
 pathLocal = './'
@@ -41,10 +41,6 @@ columnas_borrar_incomodas <- c('BsmtFinType1','LowQualFinSF','MasVnrArea','BsmtH
 
 if(!file.exists(fileDatosTrainTest)) {
 
- 
-
-  
-  
     train_kaggle <- read_csv(fileTrain)
     head(train_kaggle)
     
@@ -57,8 +53,9 @@ if(!file.exists(fileDatosTrainTest)) {
     #Mergeamos el archivo de train y test ya que tienen las mismas columnas.
     
     test_kaggle <- join(test_kaggle, claves_primarias, by = c("Id", "Id"), type = "inner")
-    full_dataset <- union(train_kaggle, test_kaggle)
-    head(full_dataset)
+    full_dataset <- dplyr::union(train_kaggle, test_kaggle)
+    full_dataset_completo <- dplyr::union(train_kaggle, test_kaggle)
+    #head(full_dataset)
     
     dt = sort(sample(nrow(full_dataset), nrow(full_dataset)*.1))
 
@@ -92,37 +89,121 @@ test<-train_test[-dt,]
 
 ```
 
-Una vez tenemos los 3 csv unidos en uno, procedemos a separar los datos de validación.
+  Una vez realiazado el proceso de separación del dataset completo en tres partes (test, train y validación final) realizaremos una primera 
+
 
 ```{r}
 library(DataExplorer)
-introduce(test)
+introduce(full_dataset_completo)
 ```
 
+
 ```{r}
-plot_intro(test)
+plot_intro(full_dataset_completo)
 ```
+
+ Las variables que nos encontraremos en el dataset son las siguientes:
+  * MSSubClass: la clase de construcción
+  * MSZoning: la clasificación general de zonificación
+  * LotFrontage: pies lineales de calle conectados a la propiedad
+  * LotArea: tamaño del lote en pies cuadrados
+  * Street:  tipo de acceso por carretera
+  * Alley: tipo de acceso al callejón
+  * LotShape: forma general de propiedad
+  * LandContour: llanura de la propiedad
+  * Utilities:  tipo de utilidades disponibles
+  * LotConfig: configuración del lote
+  * LandSlope: pendiente de la propiedad
+  * Neighborhood: ubicaciones físicas dentro de los límites de la ciudad de Ames
+  * Condition1:  Proximidad a la carretera principal o ferrocarril
+  * Condition2:  Proximidad a la carretera principal o al ferrocarril (si hay un segundo)
+  * BldgType: tipo de vivienda
+  * HouseStyle: estilo de vivienda
+  * OverallQual: material general y calidad de acabado
+  * OverallCond: calificación de condición general
+  * YearBuilt: fecha de construcción original
+  * YearRemodAdd: fecha de remodelación
+  * RoofStyle: tipo de techo
+  * RoofMatl: material del techo
+  * Exterior1st: cubierta exterior en la casa
+  * Exterior2nd: revestimiento exterior de la casa (si hay más de un material)
+  * MasVnrType: tipo de chapa de albañilería
+  * MasVnrArea: área de revestimiento de mampostería en pies cuadrados
+  * ExterQual: calidad del material exterior
+  * ExterCond: Condición actual del material en el exterior.
+  * Foundation: : tipo de cimiento
+  * BsmtQual: altura del sótano
+  * BsmtCond: estado general del sótano
+  * BsmtExposure: paredes de sótano a nivel de jardín o de salida
+  * BsmtFinType1: Calidad del área terminada del sótano
+  * BsmtFinSF1: Tipo 1 terminado pies cuadrados
+  * BsmtFinType2: Calidad de la segunda área terminada (si está presente)
+  * BsmtFinSF2: pies cuadrados terminados tipo 2
+  * BsmtUnfSF: pies cuadrados inacabados de área de sótano
+  * TotalBsmtSF: pies cuadrados totales del área del sótano
+  * Heating:  tipo de calefacción
+  * HeatingQC: calidad y condición de calefacción
+  * CentralAir: aire acondicionado central
+  * Electrical: sistema eléctrico
+  * 1stFlrSF: pies cuadrados del primer piso
+  * 2ndFlrSF: pies cuadrados del segundo piso
+  * LowQualFinSF: pies cuadrados terminados de baja calidad (todos los pisos)
+  * GrLivArea: superficie habitable por encima del nivel del suelo (pies cuadrados)
+  * BsmtFullBath: baños completos en el sótano
+  * BsmtHalfBath: medio baño en el sótano
+  * FullBath: baños completos por encima del grado
+  * HalfBath: medio baño por encima del grado
+  * Bedroom: número de dormitorios por encima del nivel del sótano
+  * Kitchen número de cocinas
+  * KitchenQual: calidad de cocina
+  * TotRmsAbvGrd: total de habitaciones por encima del grado (no incluye baños)
+  * Functional: calificación de funcionalidad doméstica 
+  * Fireplaces: : número de chimeneas
+  * FireplaceQu: calidad de chimenea
+  * GarageType: ubicación del garaje
+  * GarageYrBlt: año en que se construyó el garaje
+  * GarageFinish: acabado interior del garaje
+  * GarageCars: tamaño del garaje en la capacidad del automóvil
+  * GarageArea: tamaño del garaje en pies cuadrados
+  * GarageQual: calidad de garaje
+  * GarageCond: condición del garaje
+  * PavedDrive: entrada pavimentada
+  * WoodDeckSF: área de cubierta de madera en pies cuadrados
+  * OpenPorchSF: área de porche abierto en pies cuadrados
+  * Porche cerrado: área de porche cerrado en pies cuadrados
+  * EnclosedPorch:  área de porche de tres estaciones en pies cuadrados
+  * ScreenPorch: área del porche de la pantalla en pies cuadrados
+  * PoolArea: área de la piscina en pies cuadrados
+  * PoolQC: calidad de la piscina
+  * Fence: calidad de la cerca
+  * MiscFeature: características varias no cubiertas en otras categorías
+  * MiscVal: $ Valor de la característica miscelánea
+  * MoSold: Mes vendido
+  * YrSold: año vendido
+  * SaleType: tipo de venta
+  * SaleCondition: condición de venta
+
 
 ```{r}
 library(skimr)
 library(pander)
-skim(test)  %>% pander()
+skim(full_dataset_completo)  %>% pander()
 ```
 
 ```{r}
 library(VIM)
-aggr(test)
+aggr(full_dataset_completo)
 ```
 
 
 ```{r}
-missing_data <- plot_missing(test)
+missing_data <- plot_missing(full_dataset_completo)
 ```
 
 
 ```{r}
 # DataExplorer::create_report(datosOriginales) 
-plot_bar(test)
+plot_bar(full_dataset_completo)
 ```
 
 
@@ -136,35 +217,33 @@ test %>% plot_qq(sampled_rows = 1000L)
 
 
 ```{r}
-plot_correlation(na.omit(test), maxcat = 5L)
+plot_correlation(na.omit(full_dataset_completo), maxcat = 5L)
 ```
 
 
 ```{r}
-var_discretas <- c('BsmtFullBath','BsmtHalfBath','FullBath','HalfBath','BedroomAbvGr','KitchenAbvGr','TotRmsAbvGrd',
-                'Fireplaces','GarageCars','GarageYrBlt','YearBuilt','YearRemodAdd','YrSold','MoSold')
+var_discretas <- c('BsmtFullBath','BsmtHalfBath','FullBath','HalfBath','BedroomAbvGr','KitchenAbvGr','TotRmsAbvGrd','Fireplaces','GarageCars','GarageYrBlt','YearBuilt','YearRemodAdd','YrSold','MoSold')
 
 var_continuas <- c('LotFrontage','LotArea','MasVnrArea','BsmtFinSF1','BsmtFinSF2','BsmtUnfSF','TotalBsmtSF','1stFlrSF','2ndFlrSF','LowQualFinSF','GrLivArea','GarageArea','WoodDeckSF','OpenPorchSF','EnclosedPorch', '3SsnPorch','ScreenPorch','PoolArea','MiscVal','SalePrice')
 
-var_ordinales <- c('LotShape','Utilities','LandSlope','OverallQual','OverallCond','ExterQual','ExterCond',
-               'BsmtQual','BsmtCond','BsmtExposure','BsmtFinType1','BsmtFinType2','HeatingQC','CentralAir',
-               'Electrical','KitchenQual','Functional','FireplaceQu','GarageFinish','GarageQual','GarageCond',
-               'PavedDrive','PoolQC','Fence')
+var_ordinales <- c('LotShape','Utilities','LandSlope','OverallQual','OverallCond','ExterQual','ExterCond','BsmtQual','BsmtCond','BsmtExposure','BsmtFinType1','BsmtFinType2','HeatingQC','CentralAir','Electrical','KitchenQual','Functional','FireplaceQu','GarageFinish','GarageQual','GarageCond','PavedDrive','PoolQC','Fence')
 
-var_nominales <- c('MSSubClass','MSZoning','Street','Alley','LandContour','LotConfig','Neighborhood',
-               'Condition1','Condition2','BldgType','HouseStyle','RoofStyle','RoofMatl','Exterior1st',
-               'Exterior2nd','MasVnrType','Foundation','Heating','GarageType','MiscFeature',
-               'SaleType','SaleCondition')
+var_nominales <- c('MSSubClass','MSZoning','Street','Alley','LandContour','LotConfig','Neighborhood','Condition1','Condition2','BldgType','HouseStyle','RoofStyle','RoofMatl','Exterior1st',
+'Exterior2nd','MasVnrType','Foundation','Heating','GarageType','MiscFeature', 'SaleType','SaleCondition')
 
 
 
 
 ```
-
-
 4. Detección, tratamiento e imputación de datos faltantes (1 punto)
 5. Transformaciones de variables cuantitativas (1 punto)
+
+
+
 6. Procesado de variables cualitativas (1 punto)
+
+
+
 7. Selección de variables (1 punto)
 8. Ajuste, interpretación y diagnosis del modelo de regresión lineal múltiple (2 puntos)
 9. Valoración del profesor (1 punto)
