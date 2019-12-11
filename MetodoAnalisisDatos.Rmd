@@ -49,31 +49,48 @@ columnas_borrar_incomodas <- c('BsmtFinType1','LowQualFinSF','MasVnrArea','BsmtH
     
     #Mergeamos el archivo de train y test ya que tienen las mismas columnas.
     
-    test_kaggle <- dplyr::inner_join(x=test_kaggle,y=claves_primarias,by = c('Id','Id'))   
-    full_dataset <- dplyr::union(train_kaggle, test_kaggle)
-    full_dataset_completo <- dplyr::union(train_kaggle, test_kaggle)
+    #test_kaggle <- dplyr::inner_join(x=test_kaggle,y=claves_primarias,by = c('Id','Id'))   
+    #full_dataset <- dplyr::union(train_kaggle, test_kaggle)
+    #full_dataset_completo <- dplyr::union(train_kaggle, test_kaggle)
     #head(full_dataset)
     
-    dt = sort(sample(nrow(full_dataset), nrow(full_dataset)*.1))
+    
+    
+    ## Completamos test con la columna que falta
+    total_test <- merge(test_kaggle,claves_primarias,by="Id")
+    
+    # Unimos train y test completo
+    full_dataset <- rbind(train_kaggle,total_test)
+    
+    ## Desordenamos todo el dataset
+    set.seed(42)
+    rows <- sample(nrow(full_dataset))
+    df_s <- df[rows, ]
+
+    
+    ## Conseguimos el 10% para validacion
+    split_validacion <-sort(sample(nrow(full_dataset), nrow(full_dataset)*.1))
+
+    
 
     if(borra_columnas_muchos_faltantes) {
     
       #full_dataset = subset( full_dataset, select = -columnas_borrar_faltantes)
-      full_dataset <- full_dataset %>% dplyr::select(-one_of(columnas_borrar_faltantes))
+      df_s <- df_s %>% dplyr::select(-one_of(columnas_borrar_faltantes))
     
     }
   
     if(borra_columnas_incomodas) {
       #full_dataset = subset( full_dataset, select = -columnas_borrar_faltantes)
-      full_dataset <- full_dataset %>% select(-one_of(columnas_borrar_incomodas))
+      df_s <- df_s %>% select(-one_of(columnas_borrar_incomodas))
     }
     
-    validacion<-full_dataset[dt,]
+    validacion <-df_s[split_validacion, ]
     if(!file.exists(fileDatosTrainTest)) {
       write.csv(validacion, fileDatosValidacion,row.names=F)
     }
     
-    train_test<-full_dataset[-dt,]
+    train_test<-df_s[-split_validacion,]
     if(!file.exists(fileDatosTrainTest)) {
       write.csv(train_test, fileDatosTrainTest,row.names=F)
     }
@@ -91,13 +108,13 @@ test<-train_test[-dt,]
   Una vez realiazado el proceso de separación del dataset completo en tres partes (test, train y validación final) realizaremos una primera 
 
 
-```{r}
+```{r message=FALSE, warning=FALSE}
 library(DataExplorer)
 introduce(full_dataset_completo)
 ```
 
 
-```{r}
+```{r message=FALSE, warning=FALSE}
 plot_intro(full_dataset_completo)
 ```
 
@@ -242,45 +259,45 @@ for (i in columnas_sustitucion_nas) {
   * SaleCondition: condición de venta
 
 
-```{r}
+```{r message=FALSE, warning=FALSE}
 library(skimr)
 library(pander)
 skim(full_dataset_completo)  %>% pander()
 ```
 
-```{r}
+```{r message=FALSE, warning=FALSE}
 library(VIM)
 aggr(train)
 ```
 
 
-```{r}
+```{r message=FALSE, warning=FALSE}
 missing_data <- plot_missing(full_dataset_completo)
 ```
 
 
-```{r}
+```{r message=FALSE, warning=FALSE}
 # DataExplorer::create_report(datosOriginales) 
 plot_bar(full_dataset_completo)
 ```
 
 
-```{r}
+```{r message=FALSE, warning=FALSE}
 test %>% plot_histogram()
 ```
 
-```{r}
+```{r message=FALSE, warning=FALSE}
 test %>% plot_qq(sampled_rows = 1000L)
 ```
 
 
-```{r}
+```{r message=FALSE, warning=FALSE}
 library(ggplot2)
 splitDataset <- split_columns(full_dataset_completo, binary_as_factor = FALSE)
 plot_correlation(na.omit(splitDataset$continuous), type = "c" ,maxcat = 5L,theme_config = list(legend.position = "bottom", axis.text.x =element_text(angle = 90)))
 ```
 
-```{r}
+```{r message=FALSE, warning=FALSE}
 
 var_discretas <- c('BsmtFullBath','BsmtHalfBath','FullBath','HalfBath','BedroomAbvGr','KitchenAbvGr','TotRmsAbvGrd','Fireplaces','GarageCars','GarageYrBlt','YearBuilt','YearRemodAdd','YrSold','MoSold')
 
@@ -302,12 +319,12 @@ network_plot(corrmatrix)
 
 ```
 
-```{r}
+```{r message=FALSE, warning=FALSE}
 
 
 ```
 
-```{r}
+```{r message=FALSE, warning=FALSE}
 outlier_values <- boxplot.stats(full_dataset_completo$SalePrice )$out
 boxplot(full_dataset_completo$SalePrice, main="Pressure Height", boxwex=0.1)
 mtext(paste("Outliers: ", paste(outlier_values, collapse=", ")), cex=0.6)
@@ -466,4 +483,3 @@ library(forcats)
 7. Selección de variables (1 punto)
 8. Ajuste, interpretación y diagnosis del modelo de regresión lineal múltiple (2 puntos)
 9. Valoración del profesor (1 punto)
-
