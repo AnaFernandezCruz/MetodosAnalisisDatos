@@ -136,43 +136,10 @@ plot_intro(train_test)
  El siguiente código realiza la transformación anterior:
    
 ```{r message=FALSE, warning=FALSE}
-
-  columnas_sustitucion_nas <- c('Alley','BsmtQual','BsmtCond','BsmtExposure','BsmtFinType1','BsmtFinType2','GarageType','GarageFinish','GarageQual','GarageCond','PoolQC','Fence','MiscFeature','FireplaceQu')
-
+columnas_sustitucion_nas <-c('Alley','BsmtQual','BsmtCond','BsmtExposure','BsmtFinType1','BsmtFinType2','GarageType','GarageFinish','GarageQual','GarageCond','PoolQC','Fence','MiscFeature','FireplaceQu')
 
 for (i in columnas_sustitucion_nas) {
- full_dataset <- full_dataset %>%
-    dplyr::mutate( !!i
-         := replace(!!i,
-                   is.na(!!i),
-                   'NA'))
- full_dataset <- full_dataset %>%
-    dplyr::mutate( !!i
-         := replace(!!i,
-                   is.na(!!i),
-                   'NA'))
- 
-  train_test <- train_test %>%
-    dplyr::mutate( !!i
-         := replace(!!i,
-                   is.na(!!i),
-                   'NA'))
-  
-  
-    train <- train %>%
-    dplyr::mutate( !!i
-         := replace(!!i,
-                   is.na(!!i),
-                   'NA'))
-  
- 
-      test <- test  %>%
-    dplyr::mutate( !!i
-         := replace(!!i,
-                   is.na(!!i),
-                   'NA'))
-  
-    
+  full_dataset[i][is.na(full_dataset[i])] <- "NA"
 }
 
 ```
@@ -368,7 +335,8 @@ colnames(train_test)[elementosBajaVarianza]
       Ahora realizaremos el mismo análisis con las variables ordinales:
 
 ```{r}
-train_dataset %>%  dplyr::select(var_ordinales)  %>% plot_bar()
+#train_dataset %>%  dplyr::select(var_ordinales)  %>% plot_bar()
+train_test %>%  dplyr::select(var_ordinales)  %>% plot_bar()
 ```
 
    Se observan práctimante las mismas anomalías en en el caso anterior.
@@ -596,7 +564,8 @@ Como hay muchas variables que no tienen valores faltantes, vamos a crear un data
     na_counts_sort <- sort(na_counts, decreasing = TRUE)
     na_counts_sort <- na_counts_sort[1:20]
     (na_counts_sort)
-    train_test_na <- train_test %>% select(LotFrontage, GarageYrBlt, MasVnrType, MasVnrArea, MSZoning, Functional, Exterior1st, Exterior2nd, Electrical, BsmtFinSF1, BsmtFinSF2, BsmtUnfSF, KitchenQual, TotalBsmtSF, BsmtFullBath, BsmtHalfBath, GarageCars, GarageArea, SaleType)
+    train_test_na <- train_test %>% dplyr::select(c('LotFrontage','GarageYrBlt','MasVnrType','MasVnrArea','MSZoning', 'Functional','Exterior1st','Exterior2nd','Electrical','BsmtFinSF1','BsmtFinSF2','BsmtUnfSF','KitchenQual', 'TotalBsmtSF','BsmtFullBath','BsmtHalfBath','GarageCars','GarageArea','SaleType'))
+                                   
     aggr_plot <- aggr(train_test_na,col=c('navyblue','red'), numbers=TRUE, sortVars=TRUE, cex.axis=.7, gap=3, ylab=c("Histogram of missing data","Pattern"))
 ```
     
@@ -605,11 +574,13 @@ Ahora podemos prestar verdadera atención a las columnas con datos faltantes.
 Si nos fijamos en la columna que más datos faltantes tiene, podemos ver en la descripción del dataset que son la cantidad de pies lineales que hay de acera hasta la puerta de la casa. Además, leyendo la documentación del dataset vemos que los NA's no significa que no tengan conexión con la acera (un edificio de varios pisos por ejemplo), sino que son datos faltantes. Hemos considerado que una columna con más de un 15% de datos faltantes nos va a desbalancear el dataset drásticamente, por lo que vamos a prescindir de este valor para nuestro estudio y para la imputación de missings, por lo que la borramos del dataset.
     
 ```{r message=FALSE, warning=FALSE, echo=FALSE}
-train<-select(train, -LotFrontage)
-test<-select(test, -LotFrontage)
-train_test<-select(train_test, -LotFrontage)
-train_test_na<-select(train_test_na, -LotFrontage)
-full_dataset<-select(full_dataset, -LotFrontage)
+#train<-select(train, -LotFrontage)
+train<- train %>% dplyr::select(-LotFrontage)
+
+test<- test %>% dplyr::select( -LotFrontage)
+train_test<- train_test %>% dplyr::select(-LotFrontage)
+train_test_na<- train_test_na %>% dplyr::select(-LotFrontage)
+full_dataset<- full_dataset %>% dplyr::select( -LotFrontage)
 ```
 
 ```{r warning=FALSE}
@@ -679,7 +650,7 @@ Solo nos faltaría una variable por imputar sus valores: GarageYrBlt. Esta colum
 
 ```{r}
 library(tidyverse)
-vecindario_precioGaraje<- train_test %>% select(Neighborhood, GarageYrBlt)
+vecindario_precioGaraje<- train_test %>% dplyr::select(Neighborhood, GarageYrBlt)
 
 
 ```
