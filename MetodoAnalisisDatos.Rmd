@@ -20,8 +20,6 @@ La presente práctica intentará crear un modelo de regresión lineal múltiple 
 Antes de empezar a realizar la práctica tenemos que cargar los dataset incluidos en la página de Kaggle, unificarlos en un solo dataset y dividirlo en train/test/validación. Para ello:
 
 ```{r message=FALSE, warning=FALSE}
-
-
 library(readr)
 library(dplyr)
 
@@ -65,7 +63,7 @@ columnas_borrar_incomodas <- c('BsmtFinType1','LowQualFinSF','MasVnrArea','BsmtH
     ## Desordenamos todo el dataset
     set.seed(42)
     rows <- sample(nrow(full_dataset))
-    df_s <- df[rows, ]
+    full_dataset <- full_dataset[rows, ]
 
     
     ## Conseguimos el 10% para validacion
@@ -76,21 +74,21 @@ columnas_borrar_incomodas <- c('BsmtFinType1','LowQualFinSF','MasVnrArea','BsmtH
     if(borra_columnas_muchos_faltantes) {
     
       #full_dataset = subset( full_dataset, select = -columnas_borrar_faltantes)
-      df_s <- df_s %>% dplyr::select(-one_of(columnas_borrar_faltantes))
+      full_dataset <- full_dataset %>% dplyr::select(-one_of(columnas_borrar_faltantes))
     
     }
   
     if(borra_columnas_incomodas) {
       #full_dataset = subset( full_dataset, select = -columnas_borrar_faltantes)
-      df_s <- df_s %>% select(-one_of(columnas_borrar_incomodas))
+      full_dataset <- full_dataset %>% select(-one_of(columnas_borrar_incomodas))
     }
     
-    validacion <-df_s[split_validacion, ]
+    validacion <-full_dataset[split_validacion, ]
     if(!file.exists(fileDatosTrainTest)) {
       write.csv(validacion, fileDatosValidacion,row.names=F)
     }
     
-    train_test<-df_s[-split_validacion,]
+    train_test<-full_dataset[-split_validacion,]
     if(!file.exists(fileDatosTrainTest)) {
       write.csv(train_test, fileDatosTrainTest,row.names=F)
     }
@@ -110,12 +108,12 @@ test<-train_test[-dt,]
 
 ```{r message=FALSE, warning=FALSE}
 library(DataExplorer)
-introduce(full_dataset_completo)
+introduce(full_dataset)
 ```
 
 
 ```{r message=FALSE, warning=FALSE}
-plot_intro(full_dataset_completo)
+plot_intro(full_dataset)
 ```
 
  Vemos que este gráfico muestra en los valores de "complete rows" un valor del 0%, lo cuál parece indicar un problema con alguna columna en particular.  Lo que observamos es que el valor NA es un valor de algunas de las columnas válido, con lo que habría que corregir esto para estas columnas y volver a hacer el análisis. Supondremos que para estas columnas no existe ningún valor genuinamente en blanco:
@@ -145,7 +143,7 @@ for (i in columnas_sustitucion_nas) {
          := replace(!!i,
                    is.na(!!i),
                    'NA'))
- full_dataset_completo <- full_dataset_completo %>%
+ full_dataset <- full_dataset %>%
     dplyr::mutate( !!i
          := replace(!!i,
                    is.na(!!i),
@@ -262,7 +260,7 @@ for (i in columnas_sustitucion_nas) {
 ```{r message=FALSE, warning=FALSE}
 library(skimr)
 library(pander)
-skim(full_dataset_completo)  %>% pander()
+skim(full_dataset)  %>% pander()
 ```
 
 ```{r message=FALSE, warning=FALSE}
@@ -272,13 +270,13 @@ aggr(train)
 
 
 ```{r message=FALSE, warning=FALSE}
-missing_data <- plot_missing(full_dataset_completo)
+missing_data <- plot_missing(full_dataset)
 ```
 
 
 ```{r message=FALSE, warning=FALSE}
 # DataExplorer::create_report(datosOriginales) 
-plot_bar(full_dataset_completo)
+plot_bar(full_dataset)
 ```
 
 
@@ -293,7 +291,7 @@ test %>% plot_qq(sampled_rows = 1000L)
 
 ```{r message=FALSE, warning=FALSE}
 library(ggplot2)
-splitDataset <- split_columns(full_dataset_completo, binary_as_factor = FALSE)
+splitDataset <- split_columns(full_dataset, binary_as_factor = FALSE)
 plot_correlation(na.omit(splitDataset$continuous), type = "c" ,maxcat = 5L,theme_config = list(legend.position = "bottom", axis.text.x =element_text(angle = 90)))
 ```
 
@@ -311,8 +309,8 @@ var_nominales <- c('MSSubClass','MSZoning','Street','Alley','LandContour','LotCo
 
 
 library(corrr)
-corrmatrix <-corrr::correlate(na.omit(full_dataset_completo %>% dplyr::select(var_continuas)))
-corrmatrix2 <-corrr::correlate(na.omit(full_dataset_completo %>% dplyr::select(var_discretas)))
+corrmatrix <-corrr::correlate(na.omit(full_dataset %>% dplyr::select(var_continuas)))
+corrmatrix2 <-corrr::correlate(na.omit(full_dataset %>% dplyr::select(var_discretas)))
 
 rplot(corrmatrix, legend = TRUE, shape = 16)
 network_plot(corrmatrix)
@@ -325,14 +323,156 @@ network_plot(corrmatrix)
 ```
 
 ```{r message=FALSE, warning=FALSE}
-outlier_values <- boxplot.stats(full_dataset_completo$SalePrice )$out
-boxplot(full_dataset_completo$SalePrice, main="Pressure Height", boxwex=0.1)
+outlier_values <- boxplot.stats(full_dataset$SalePrice )$out
+boxplot(full_dataset$SalePrice, main="Pressure Height", boxwex=0.1)
 mtext(paste("Outliers: ", paste(outlier_values, collapse=", ")), cex=0.6)
 outlier_values
 
 ```
 
 4. Detección, tratamiento e imputación de datos faltantes (1 punto)
+
+
+A la hora de tratar con cualquier dataset hay que tener en cuenta que hay datos que pueden faltar. Es importante encontrarlos y tratarlos de manera correcta, pues podrían llevarnos a predecir de manera errónea y el modelo habría que tirarlo a la basura. El proceso de detección, tratamiento e imputación de datos faltantes se va a realizar de la siguiente manera:
+
+    a. Análisis exploratorio inicial de los datos.
+    
+En el análisis exploratorio inicial de los datos, además de entender qué es lo que tenemos delante, hemos buscado datos que no concordaran con lo esperado: valores negativos en variables positivas, fechas imposibles o símbolos como "?", valores como "Unkown", etc. 
+
+Esto nos llevó a darnos cuenta de que en algunas variable se acumulaban valores "NA" de manera extraña e investigando descubrimos que era un valor metido a propósito y que indicaban, por ejemplo,
+    Alley: NA 	No alley access
+    BsmtQual: NA	No Basement
+    BsmtCond: NA	No Basement
+    BsmtExposure: NA	No Basement
+    BsmtFinType1: NA	No Basement
+    BsmtFinType2:  NA	No Basement
+    GarageType: NA	No Garage
+    GarageFinish: NA	No Garage
+    GarageQual: : NA	No Garage
+    GarageCond: : NA	No Garage
+    PoolQC:  NA	No Pool
+    Fence:  NA	No Fence
+    MiscFeature:   NA	None
+    
+Valores que, al no disponer la casa de jardín, piscina o garaje, por ejemplo, no se podía poner ningún valor. Así que lo hemos considerado como ausencia de jardín, piscina o garaje y no como NA's.
+    
+    b. Posibles causas de aparición de datos faltantes.
+    
+Tenemos que tener en cuenta si nuestros datos son de naturaleza 
+    
+- MCAR (Missing completely at Random): la probabilidad de que un dato falte es idéntica para todos los casos.
+- MAR (Missing at Random): la probabilidad de que falte un valor depende de algún mecanimos conocido (pej, grupos en encuentas que son menos proclives a dar datos).
+- MNAR (Missing not at Random): la probabilidad de que falte un valor depende de alguna variable no observada (pej, gente que miente).
+    
+Analizando nuestros datos vemos que nuestros datos faltantes pertenecen al grupo de MAR, ya que podemos tener capacidad o no para obtener cierta información de los domicilios de Boston, pero será totalmente aleatoria. Ésta es una buena noticia, ya que podemos utilizar técnicas de imputación para suplir los datos faltantes.
+    
+    c. Análisis exploratorio de datos faltantes.
+    
+Para hacer un análisis de los datos que nos faltan vamos a utilizar la biblioteca VIM. Ésta biblioteca nos será muy útil ya que nos ayuda a analizar las posibles relaciones y estructuras de los valores faltantes e imputados. 
+    
+```{r warning=FALSE,fig.width=40, fig.height=30}
+    library(VIM)
+    aggr_plot <- aggr(train_test,col=c('navyblue','red'), numbers=TRUE, sortVars=TRUE, cex.axis=.7, gap=3, ylab=c("Histogram of missing data","Pattern"))
+```
+    
+Como hay muchas variables que no tienen valores faltantes, vamos a crear un dataset únicamente con las columnas que tienen missings para poder analizar mejor los datos. Para ello:
+    
+```{r warning=FALSE}
+    na_counts <- sapply(train_test, function(x) sum(is.na(x)))
+    na_counts_sort <- sort(na_counts, decreasing = TRUE)
+    na_counts_sort <- na_counts_sort[1:20]
+    (na_counts_sort)
+    train_test_na <- train_test %>% select(LotFrontage, GarageYrBlt, MasVnrType, MasVnrArea, MSZoning, Functional, Exterior1st, Exterior2nd, Electrical, BsmtFinSF1, BsmtFinSF2, BsmtUnfSF, KitchenQual, TotalBsmtSF, BsmtFullBath, BsmtHalfBath, GarageCars, GarageArea, SaleType)
+    aggr_plot <- aggr(train_test_na,col=c('navyblue','red'), numbers=TRUE, sortVars=TRUE, cex.axis=.7, gap=3, ylab=c("Histogram of missing data","Pattern"))
+```
+    
+Ahora podemos prestar verdadera atención a las columnas con datos faltantes. 
+    
+Si nos fijamos en la columna que más datos faltantes tiene, podemos ver en la descripción del dataset que son la cantidad de pies lineales que hay de acera hasta la puerta de la casa. Además, leyendo la documentación del dataset vemos que los NA's no significa que no tengan conexión con la acera (un edificio de varios pisos por ejemplo), sino que son datos faltantes. Hemos considerado que una columna con más de un 15% de datos faltantes nos va a desbalancear el dataset drásticamente, por lo que vamos a prescindir de este valor para nuestro estudio y para la imputación de missings, por lo que la borramos del dataset.
+    
+```{r message=FALSE, warning=FALSE, echo=FALSE}
+train<-select(train, -LotFrontage)
+test<-select(test, -LotFrontage)
+train_test<-select(train_test, -LotFrontage)
+train_test_na<-select(train_test_na, -LotFrontage)
+full_dataset<-select(full_dataset, -LotFrontage)
+```
+
+```{r warning=FALSE}
+    aggr_plot <- aggr(train_test_na,col=c('navyblue','red'), numbers=TRUE, sortVars=TRUE, cex.axis=.7, gap=3, ylab=c("Histogram of missing data","Pattern"))
+    ```
+    
+Vemos en el último gráfico que, omitiendo la columna con datos faltantes mayor que el 5%, la cantidad de datos faltantes es menor que el 3%. Además vemos en la gráfica de la derecha que lo más habitual es que no falten todos los datos a la vez y a continuación que falten datos de la primera columna "GarageYtBtt". 
+    
+    
+    d. Proporción datos faltantes. 
+    
+El siguiente paso es calcular la proporción de datos faltantes por columna. Para el caso en el que la proporción de datos faltantes sea menor que el 3% (0.03) imputaremos a los valores faltantes de variables cuantitativas su mediana o media, mientras que a las variables categóricas les imputaremos la categoría más frecuente. Para las columnas en que la proporcion de datos faltantes sea superior al 3% (0.03) tendremos que utilizar técnicas de imputación más avanzadas. Si en nuestro dataset se diera el caso en el que existen varias columnas de este útlimo tipo habría que realizar un análisis de sensibilidad para comprobar que no hemos alterado la naturaleza del dataset imputando los datos faltantes.
+
+
+```{r}
+colMeans(is.na(train_test_na))
+```
+
+Para el caso de las variables cuya proporción de missings es menor que el 3% (<=16 datos por columna) vamos a utilizar el método de imputar un valor de centralidad, en este caso la media. Antes de proceder a imputar, vemos que 
+
+- Categóricas: MasVnrType, MSZoning, Functional, Electrical, KitchenQual, SaleType, Exterior1st, Exterior2nd, BsmtFullBath, BsmtHalfBath, Utilities.
+
+- Cuantitativas: GarageYrBlt, MasVnrArea, GarageCars, GarageArea, BsmtFinSF1, BsmtFinSF2, BsmtUnfSF, TotalBsmtSF.
+
+Para imputar de manera eficaz y sin tener que analizar por separado las variables categóricas de las cuantitativas vamos a utilizar la biblioteca HMISC. Esta biblioteca tiene dos funciones altamente potentes: impute() y aregImpute(). Se diferencian entre sí en que en la segunda puedes utilizar regresiones, bootstrapping y otros métodos para imputar valores.
+
+```{r}
+summary_antes_imputar <- summary(train_test)
+#para las variables cuantitativas con una proporción del faltantes menor que el 3%,
+#imputaremos el valor de la media
+cuantitativas <- c('MasVnrArea','GarageCars','GarageArea', 'BsmtFinSF1', 'BsmtFinSF2', 'BsmtUnfSF', 'TotalBsmtSF','BsmtFullBath', 'BsmtHalfBath')
+for (i in cuantitativas){
+  list_values <- ifelse(is.na(train_test[[i]]), 
+                       round(mean(train_test[[i]], na.rm=TRUE), 0), train_test[[i]])
+  train_test[[i]] <- list_values
+  }
+
+train_test
+#para variables categoricas con una proporción de datos faltantes menor que el 3%
+#vamos a imputar el valor más frecuente.  
+
+
+categoricas <- c('MasVnrType', 'MSZoning', 'Functional', 'Electrical',
+'KitchenQual', 'SaleType', 'Exterior1st', 'Exterior2nd',  'Utilities')
+for (i in cuantitativas){
+  y = as.data.frame(table(unlist(train_test[[i]])))
+  sorted_list <-y[with(y, order(-Freq)),]
+  frecuent_value <- sorted_list$Var1[1]
+  list_values <- c()
+  for(j in 1:length(train_test[[i]])) {
+    if(is.na(train_test[[i]][j])) {
+      train_test[[i]][j] = frecuent_value
+      na.rm=TRUE
+      list_values = c(list_values, train_test[[i]][j])
+    }
+    else {
+      list_values = c(list_values, train_test[[i]][j])
+    }
+  }
+  train_test[[i]] <- list_values
+}
+
+summary_despues_imputar <- summary(train_test)
+```
+
+Solo nos faltaría una variable por imputar sus valores: GarageYrBlt. Esta columna indica el año en el que se construyó el garaje de la propiedad. No lo vamos a imputar con el valor medio ya que la proporción de datos faltantes es mayor al 3%, así que lo que proponemos para su imputación es lo siguiente: ya que conocemos el vecindario al que pertenecen los pisos, es lógico que el año de construcción del garaje sea similar para todo el vecindario. Vamos a proceder a agrupar los garages por vecindario e imputaremos el año medio correspondiente.
+
+```{r}
+library(tidyverse)
+vecindario_precioGaraje<- train_test %>% select(Neighborhood, GarageYrBlt)
+
+
+```
+
+
+
+
 5. Transformaciones de variables cuantitativas (1 punto)
 
 ```{r}
