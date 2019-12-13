@@ -37,13 +37,13 @@ columnas_borrar_faltantes <- c('FireplaceQu','Fence','Alley','MiscFeature','Pool
 columnas_borrar_incomodas <- c('BsmtFinType1','LowQualFinSF','MasVnrArea','BsmtHalfBath','EnclosedPorch','KitchenAbvGr','MiscVal','PoolArea','ScreenPorch','Utilities','Condition2','RoofMalt','Heating','Street')
 
     train_kaggle <- read_csv(fileTrain)
-    #head(train_kaggle)
+    head(train_kaggle)
     
     test_kaggle <- read_csv(fileTest)
-    #head(test_kaggle)
+    head(test_kaggle)
     
     claves_primarias <- read_csv(fileDatosPK)
-    #head(claves_primarias)
+    head(claves_primarias)
     
     #Mergeamos el archivo de train y test ya que tienen las mismas columnas.
     
@@ -65,8 +65,11 @@ columnas_borrar_incomodas <- c('BsmtFinType1','LowQualFinSF','MasVnrArea','BsmtH
     rows <- sample(nrow(full_dataset))
     full_dataset <- full_dataset[rows, ]
 
+    
     ## Conseguimos el 10% para validacion
     split_validacion <-sort(sample(nrow(full_dataset), nrow(full_dataset)*.1))
+
+    
 
     if(borra_columnas_muchos_faltantes) {
     
@@ -100,24 +103,20 @@ test<-train_test[-dt,]
 
 ```
 
-  Una vez realiazado el proceso de separación del dataset completo en tres partes (test, train y validación final) realizaremos un primer resumen del estdo del dataset:
+  Una vez realiazado el proceso de separación del dataset completo en tres partes (test, train y validación final) realizaremos una primera 
 
 
 ```{r message=FALSE, warning=FALSE}
 library(DataExplorer)
-introduce(train_test)
+introduce(full_dataset)
 ```
 
-   Vemos que el dataset está dividio en:
-    * 81 variables distintas, en las que una de ellas es la clave principal (denominada Id) que no debermos tener en cuenta en el análisis de regresión. De estas variables, 43 son discretas y 38 contínuas. Vemos también que hay una gran cantidad de "missings" y el valor de "complete_row" es cero, lo que indica que ha habido algún problema con la lectura del dataset en algunas columnas.
-
-  Realizaremos un gráfico mirando la distribución de los datos por tipos y otra información que la anterior tabla ya incluía:
 
 ```{r message=FALSE, warning=FALSE}
-plot_intro(train_test)
+plot_intro(full_dataset)
 ```
 
- Como hemos indicado antes, vemos que este gráfico muestra en los valores de "complete rows" un valor del 0%, lo cuál parece indicar un problema con alguna columna en particular.  Lo que observamos es que el valor NA es un valor de algunas de las columnas válido, con lo que habría que corregir esto para estas columnas y volver a hacer el análisis. Supondremos que para estas columnas no existe ningún valor genuinamente en blanco:
+ Vemos que este gráfico muestra en los valores de "complete rows" un valor del 0%, lo cuál parece indicar un problema con alguna columna en particular.  Lo que observamos es que el valor NA es un valor de algunas de las columnas válido, con lo que habría que corregir esto para estas columnas y volver a hacer el análisis. Supondremos que para estas columnas no existe ningún valor genuinamente en blanco:
 
    Alley: NA 	No alley access
    BsmtQual: NA	No Basement
@@ -132,14 +131,45 @@ plot_intro(train_test)
    PoolQC:  NA	No Pool
    Fence:  NA	No Fence
    MiscFeature:   NA	None
- 
- El siguiente código realiza la transformación anterior:
    
 ```{r message=FALSE, warning=FALSE}
-columnas_sustitucion_nas <-c('Alley','BsmtQual','BsmtCond','BsmtExposure','BsmtFinType1','BsmtFinType2','GarageType','GarageFinish','GarageQual','GarageCond','PoolQC','Fence','MiscFeature','FireplaceQu')
+
+  columnas_sustitucion_nas <- c('Alley','BsmtQual','BsmtCond','BsmtExposure','BsmtFinType1','BsmtFinType2','GarageType','GarageFinish','GarageQual','GarageCond','PoolQC','Fence','MiscFeature','FireplaceQu')
+
 
 for (i in columnas_sustitucion_nas) {
-  full_dataset[i][is.na(full_dataset[i])] <- "NA"
+ full_dataset <- full_dataset %>%
+    dplyr::mutate( !!i
+         := replace(!!i,
+                   is.na(!!i),
+                   'NA'))
+ full_dataset <- full_dataset %>%
+    dplyr::mutate( !!i
+         := replace(!!i,
+                   is.na(!!i),
+                   'NA'))
+ 
+  train_test <- train_test %>%
+    dplyr::mutate( !!i
+         := replace(!!i,
+                   is.na(!!i),
+                   'NA'))
+  
+  
+    train <- train %>%
+    dplyr::mutate( !!i
+         := replace(!!i,
+                   is.na(!!i),
+                   'NA'))
+  
+ 
+      test <- test  %>%
+    dplyr::mutate( !!i
+         := replace(!!i,
+                   is.na(!!i),
+                   'NA'))
+  
+    
 }
 
 ```
@@ -226,15 +256,46 @@ for (i in columnas_sustitucion_nas) {
   * SaleType: tipo de venta
   * SaleCondition: condición de venta
 
- A continuación, dividiremos las variables en las siguientes categorías:
-   * Variables con dominio contínuo y numérico
-   * Variable con dominio numérico discreto
-   * Variables descriptivas nominales  (variables que toman valores alfanumérido de un conjunto finito de valores)
-   * Variables descriptivas ordinales (variables que contienen una relación de orden)
-  
-  El siguiente código realiza la descomposición en dichas categorías para usar con posterioridad:
 
-```{r}
+```{r message=FALSE, warning=FALSE}
+library(skimr)
+library(pander)
+skim(full_dataset)  %>% pander()
+```
+
+```{r message=FALSE, warning=FALSE}
+library(VIM)
+aggr(train)
+```
+
+
+```{r message=FALSE, warning=FALSE}
+missing_data <- plot_missing(full_dataset)
+```
+
+
+```{r message=FALSE, warning=FALSE}
+# DataExplorer::create_report(datosOriginales) 
+plot_bar(full_dataset)
+```
+
+
+```{r message=FALSE, warning=FALSE}
+test %>% plot_histogram()
+```
+
+```{r message=FALSE, warning=FALSE}
+test %>% plot_qq(sampled_rows = 1000L)
+```
+
+
+```{r message=FALSE, warning=FALSE}
+library(ggplot2)
+splitDataset <- split_columns(full_dataset, binary_as_factor = FALSE)
+plot_correlation(na.omit(splitDataset$continuous), type = "c" ,maxcat = 5L,theme_config = list(legend.position = "bottom", axis.text.x =element_text(angle = 90)))
+```
+
+```{r message=FALSE, warning=FALSE}
 
 var_discretas <- c('BsmtFullBath','BsmtHalfBath','FullBath','HalfBath','BedroomAbvGr','KitchenAbvGr','TotRmsAbvGrd','Fireplaces','GarageCars','GarageYrBlt','YearBuilt','YearRemodAdd','YrSold','MoSold')
 
@@ -245,272 +306,29 @@ var_ordinales <- c('LotShape','Utilities','LandSlope','OverallQual','OverallCond
 var_nominales <- c('MSSubClass','MSZoning','Street','Alley','LandContour','LotConfig','Neighborhood','Condition1','Condition2','BldgType','HouseStyle','RoofStyle','RoofMatl','Exterior1st',
 'Exterior2nd','MasVnrType','Foundation','Heating','GarageType','MiscFeature', 'SaleType','SaleCondition')
 
-var_continuas_discretas = c(var_continuas,var_discretas)
 
-```
-
-
-  A continuación realizaremos un pequeño informe mostrando algunas características de los datos que contienen el dataset:
-
-```{r message=FALSE, warning=FALSE}
-library(skimr)
-library(pander)
-
-variablesReporte <- list(
-  min = min,
-  max = max,
-  mean = mean
-)
-#skim_with(numeric = variablesReporte, append = FALSE) 
-skim(full_dataset)  %>% pander()
-
-```
-
-  Ahora nos centraremos en encontrar cuál es la distribución de missings en el dataset. Para ello, utilizaremos los siguientes gráficos:
-
-```{r message=FALSE, warning=FALSE}
-library(VIM)
-aggr(train)
-```
-
-  Dibujaremos un histograma con la proporción de missings para las variables continuas:
-
-```{r}
-library(ggplot2)
-
-missing_data_continuas <- train_test %>%  dplyr::select(var_continuas)  %>% plot_missing(theme_config = list(legend.position = "bottom", axis.text.x =element_text(angle = 90),axis.text.y = element_text(size = rel(1))))
-
-```
-
-  Observamos que solo úna de las variables tiene una cantidad moderada de datos faltantes ("LotFrontage").
-
-  Ahora repetiremos este procedimiento para las variables discretas:
-
-```{r}
-
-missing_data_discretas <- train_test %>%  dplyr::select(var_discretas)  %>% plot_missing(theme_config = list(legend.position = "bottom", axis.text.x =element_text(angle = 90),axis.text.y = element_text(size = rel(1))))
-
-```
-
-  En este caso la variable "GarageYrBlt" tiene la mayor cantidad de valores faltantes.
-
-  Repetiremos el mismo proceso para las variables discretas ordinales:
-
-```{r}
-
-missing_data_ordinales <- train_test %>%  dplyr::select(var_ordinales)  %>% plot_missing(theme_config = list(legend.position = "bottom", axis.text.x =element_text(angle = 90),axis.text.y = element_text(size = rel(1))))
-
-```
-
-  Y por último las nominales:
-
-```{r}
-
-missing_data_nominales <- train_test %>%  dplyr::select(var_nominales)  %>% plot_missing(theme_config = list(legend.position = "bottom", axis.text.x =element_text(angle = 90),axis.text.y = element_text(size = rel(1))))
-
-```
-
-  En ninguno de los casos  se observan grandes proporciones de datos faltantes.
-  
-  Ahora comenzaremos con el análisis univariante de los datos del dataset.  Empezaremos dicho análisis mostrando un conjunto de histogramas para las variables nominales:
-
-
-```{r}
-train_test %>%  dplyr::select(var_nominales)  %>% plot_bar()
-```
-
-  A la vista de estos diagramas, observamos lo siguiente:
-      * Existe una gran cantidad de variables que tienen una varianza muy reducida, tales como Street, Alley, LandContour, Condition1, Condition2, RoofStyle, RoofMtl, Heating, GarageType, SaleCondition. Estas variables pueden ser problemáticas al realizar el proceso de regresión lineal para el que este tipo de varialbes puede ser problemático, por no contar que para estos modelos este tipo de variables tienen muy poco poder predictivo.
-    
-    El siguiente código almacenará estas variables para su posterior procesado en otras fases de la práctica:
-
-```{r}
-library(caret)
-elementosBajaVarianza <- nearZeroVar(train_test,freqCut = 95/5,uniqueCut = 10)
-colnames(train_test)[elementosBajaVarianza]
-```
-
-    Otra cosa que se observa en los anteriores diagramas es que todas las distribuciones continen un alto grado de asimetría (Skewness), cosa que habrá que tener en cuenta por si hay que realizar algún tipo de transformación sobre ellas en futuros apartados de la práctica:
-    
-      Ahora realizaremos el mismo análisis con las variables ordinales:
-
-```{r}
-#train_dataset %>%  dplyr::select(var_ordinales)  %>% plot_bar()
-train_test %>%  dplyr::select(var_ordinales)  %>% plot_bar()
-```
-
-   Se observan práctimante las mismas anomalías en en el caso anterior.
-
-   Proseguiremos con las variables contínuas:
-  
-```{r}
-train_test %>%  dplyr::select(var_continuas) %>% plot_histogram()
-```
-
-    Los comentarios que se pueden hacer en este caso son los siguientes:
-      * Muy pocas variables parecen seguir una distribución normal y casi todas tienen un fuerte sesgo hacia la izquierda (y unas pocas a la derecha), sugeriendo para muchas de ellas una transformación de tipo logarítmico. Además, algunas de ellas parecen presentar numerosos "outliers" debido a que el rango de variación de las mismas es muy elevado en una gran parte de los valores finales sin que aparezcan casi valores en los mismos. 
-      * La variable "Id" es una especie de clave primária organizadora de las filas y hay que eliminarla en los procesos de regresión.
-
-   Ahora realizaremos los mismos gráficos para las variables discretas:
-
-```{r}
-train_test %>%  dplyr::select(var_discretas) %>% plot_histogram()
-```
- 
-     Comentarios parecidos a el análisis de distribución de las variables contínuas se pueden hacer para estas variables.
-
-    Ahora nos ocuparemos del análisis de la variable que representa la variable dependiente en nuestro modelo, el precio de las casas. En primer lugar dibujaremos su histograma:
-
-
-```{r}
-
-ggplot(train_test, aes(x=SalePrice)) + 
-    geom_histogram(aes(y=..density..),      
-                   binwidth=7000,
-                   colour="black", fill="white") +
-    geom_density(alpha=.2, fill="#FF6666")  
-
-```
-
-  Vemos que esta variable tiene un importe sesgo a la izquierda y parece que un cambio de variable de tipo logarítmico podría convertirla en una variable con distribución normal, cosa importante para el modelo lineal de regresión múltiple.  Confirmemos esta hipótesis realizando el cambio de variable en la misma y dibujando su función de distribución normal aproximada:
-
-```{r}
-
-  library(MASS)
-  fitDistribution <- fitdistr(log10(train_test$SalePrice), densfun = "normal")
-  ggplot(data = train_test) +
-  geom_histogram(mapping = aes(x = log10(SalePrice), y = ..density..), col="white") +
-  stat_function(fun = dnorm, 
-      args = list(mean = fitDistribution$estimate[1], sd = fitDistribution$estimate[2], log = F), 
-      color="red", lwd=1)
-
-```
-
-  Vemos que, efectivamente, lo que hemos comentado en el anterior apartado se cumple. 
-  Detectamos también que el rango dinámico de la variable es muy grande en su parte    derecha sin que apenas haya valores en dicho intervalo, lo que invita a pensar en la presencia de "outliers". Dibujaremos sendos diagramas de cajas con la variable original y la variable transformada:
-
-```{r}
-
-library(ggpubr)
-
-graf3 <- train_test %>% dplyr::select( SalePrice) %>%
-  na.omit() %>%
-  ggplot(aes(x=0,y=SalePrice)) +
-    geom_boxplot(outlier.colour="black", outlier.shape=16,
-             outlier.size=2, notch=FALSE)
-
-graf4 <- train_test %>% dplyr::mutate(log10_saleprice = log10(SalePrice)) %>%
-  dplyr::select(log10_saleprice) %>%
-  na.omit() %>%
-  ggplot(aes(x=0,y=log10_saleprice)) +
-    geom_boxplot(outlier.colour="black", outlier.shape=16,
-             outlier.size=2, notch=FALSE)
-
-ggarrange(graf3,graf4)
-
-```
-
-   Vemos claramente la existencia de Outliers en esta variable que la transformación logarítmica no es capaz de resolver, tanto en los valores superiores como en los inferiores. En una parte futura de este apartado, detectaremos y almacenaremos en sendas variables estos Outliers para todas las variables independientes y tomar una decisión de cómo transformales en los apartados de tratamiento de variables cualitativas y cuantitativas.
-   
-   Ahora realizaremos un conjunto de gráficos cuantil/cuantil sobre las variables continuas y discretas para corroborar que hay pocas variables con una distribución normal:
-
-```{r}
-train_test %>% plot_qq(sampled_rows = 1000L)
-```
-
-  Las que más se aproximan a esta distribución son: LotArea, LotFrontage, GrLivArea, TotalBsmtSF y X1stFlrSF. Este diagrama pone en evidencia también la gran cantidad de Outliers que tienen algunas variables.
-  
-  Almacenaremos el grado de asimetría de dichas variables para en un futuro poder tener un criterio más claro de qué variables son candidatas a un tipo de transformación logarítmica:
-
-```{r}
-library(moments)
-listasVariablesSkewness <-  na.omit(train_test %>% dplyr::select(var_continuas_discretas)) %>% skewness()
-listasVariablesSkewness
-variablesSkewnessAlto <- c('LotArea','LowQualFinSF','3SsnPorch','PoolArea','MiscVal')  
-```
-
-   Ahora procedermos a realizar el análisis vibariante de nuestros datos. Empezaremos con analizar los coeficientes de correlación entre las distintas variables. El siguiente diagrama intenta dibujar un mapa de calor de dichas correlaciones para las variables contínuas, pero debido a la gran cantidad de varibles en dicho diagrama no se puede visualizar nada con claridad:
-
-
-```{r}
-library(ggplot2)
-splitDataset <- split_columns(train_test, binary_as_factor = FALSE)
-plot_correlation(na.omit(splitDataset$continuous), type = "c" ,maxcat = 5L,theme_config = list(legend.position = "bottom", axis.text.x =element_text(angle = 90),axis.text.y = element_text(size = rel(0.4))  ))
-```
-
-
-
-
-```{r}
 
 library(corrr)
-corrmatrix <-corrr::correlate(na.omit(train_test %>% dplyr::select(var_continuas)))
+corrmatrix <-corrr::correlate(na.omit(full_dataset %>% dplyr::select(var_continuas)))
+corrmatrix2 <-corrr::correlate(na.omit(full_dataset %>% dplyr::select(var_discretas)))
+
 rplot(corrmatrix, legend = TRUE, shape = 16)
 network_plot(corrmatrix)
 
+```
+
+```{r message=FALSE, warning=FALSE}
+
 
 ```
 
-```{r}
-corrmatrix2 <-corrr::correlate(na.omit(train_test %>% dplyr::select(var_discretas)))
-rplot(corrmatrix2, legend = TRUE, shape = 16)
-network_plot(corrmatrix2)
-
-corrmatrix3 <-corrr::correlate(na.omit(train_test %>% dplyr::select(var_continuas_discretas)))
-rplot(corrmatrix3, legend = TRUE, shape = 16)
-network_plot(corrmatrix3)
-```
-
-
-```{r}
-library(caret)
-correlacionesProblematicas <- findCorrelation(cor(na.omit(train_test %>% dplyr::select(var_continuas_discretas))),cutoff = 0.8, verbose = FALSE, names = TRUE)
-correlacionesProblematicas
-```
-
-
-
-
-
-```{r}
-
- na.omit(train_test %>% dplyr::select(var_continuas)) %>% plot_scatterplot( by = "SalePrice", sampled_rows = 1000L) 
-
-#geom_smooth(method=lm, se=FALSE, fullrange=TRUE)
+```{r message=FALSE, warning=FALSE}
+outlier_values <- boxplot.stats(full_dataset$SalePrice )$out
+boxplot(full_dataset$SalePrice, main="Pressure Height", boxwex=0.1)
+mtext(paste("Outliers: ", paste(outlier_values, collapse=", ")), cex=0.6)
+outlier_values
 
 ```
-
-```{r}
-
-# na.omit(train_test %>% dplyr::select(var_discretas)) %>% plot_scatterplot( by = #"SalePrice", sampled_rows = 1000L) 
-
-#geom_smooth(method=lm, se=FALSE, fullrange=TRUE)
-
-```
-
-
- En cuanto a la detección de Outliers
-
-
-```{r}
-library(EnvStats)
-listaOutliers <- list()
-dataset_var_continuas <- train_test %>% dplyr::select(var_continuas)
-iterator = 1 
-for(i in colnames(dataset_var_continuas)) {
-  outlier_values <- boxplot.stats(dataset_var_continuas[[i]])$out
-  boxplot(dataset_var_continuas[[i]], main=i, boxwex=0.1)
-  outliersRosen <- rosnerTest(dataset_var_continuas[[i]], k = length(outlier_values)-2, warn = F)
-  listaOutliers[[iterator]] <- outliersRosen
-   iterator<- iterator +1
-}
-
-for(i in listaOutliers) {
-  print(c(i$data.name,i$n.outliers))
-}
-
-```
-
 
 4. Detección, tratamiento e imputación de datos faltantes (1 punto)
 
@@ -564,8 +382,7 @@ Como hay muchas variables que no tienen valores faltantes, vamos a crear un data
     na_counts_sort <- sort(na_counts, decreasing = TRUE)
     na_counts_sort <- na_counts_sort[1:20]
     (na_counts_sort)
-    train_test_na <- train_test %>% dplyr::select(c('LotFrontage','GarageYrBlt','MasVnrType','MasVnrArea','MSZoning', 'Functional','Exterior1st','Exterior2nd','Electrical','BsmtFinSF1','BsmtFinSF2','BsmtUnfSF','KitchenQual', 'TotalBsmtSF','BsmtFullBath','BsmtHalfBath','GarageCars','GarageArea','SaleType'))
-                                   
+    train_test_na <- train_test %>% select(LotFrontage, GarageYrBlt, MasVnrType, MasVnrArea, MSZoning, Functional, Exterior1st, Exterior2nd, Electrical, BsmtFinSF1, BsmtFinSF2, BsmtUnfSF, KitchenQual, TotalBsmtSF, BsmtFullBath, BsmtHalfBath, GarageCars, GarageArea, SaleType)
     aggr_plot <- aggr(train_test_na,col=c('navyblue','red'), numbers=TRUE, sortVars=TRUE, cex.axis=.7, gap=3, ylab=c("Histogram of missing data","Pattern"))
 ```
     
@@ -574,13 +391,11 @@ Ahora podemos prestar verdadera atención a las columnas con datos faltantes.
 Si nos fijamos en la columna que más datos faltantes tiene, podemos ver en la descripción del dataset que son la cantidad de pies lineales que hay de acera hasta la puerta de la casa. Además, leyendo la documentación del dataset vemos que los NA's no significa que no tengan conexión con la acera (un edificio de varios pisos por ejemplo), sino que son datos faltantes. Hemos considerado que una columna con más de un 15% de datos faltantes nos va a desbalancear el dataset drásticamente, por lo que vamos a prescindir de este valor para nuestro estudio y para la imputación de missings, por lo que la borramos del dataset.
     
 ```{r message=FALSE, warning=FALSE, echo=FALSE}
-#train<-select(train, -LotFrontage)
-train<- train %>% dplyr::select(-LotFrontage)
-
-test<- test %>% dplyr::select( -LotFrontage)
-train_test<- train_test %>% dplyr::select(-LotFrontage)
-train_test_na<- train_test_na %>% dplyr::select(-LotFrontage)
-full_dataset<- full_dataset %>% dplyr::select( -LotFrontage)
+train<-select(train, -LotFrontage)
+test<-select(test, -LotFrontage)
+train_test<-select(train_test, -LotFrontage)
+train_test_na<-select(train_test_na, -LotFrontage)
+full_dataset<-select(full_dataset, -LotFrontage)
 ```
 
 ```{r warning=FALSE}
@@ -650,20 +465,62 @@ Solo nos faltaría una variable por imputar sus valores: GarageYrBlt. Esta colum
 
 ```{r}
 library(tidyverse)
-vecindario_precioGaraje<- train_test %>% dplyr::select(Neighborhood, GarageYrBlt)
+vecindario_precioGaraje<- train_test %>% select(Neighborhood, GarageYrBlt)
 
+library(dplyr)
+vecindario_agrupado <- vecindario_precioGaraje %>% 
+    group_by(Neighborhood) %>% 
+    summarise(mean_data = round(mean(GarageYrBlt,na.rm=TRUE),0))
+summary(vecindario_agrupado)
+
+#En la variable grouped_list tenemos los vecindarios de Boston y la media del año
+#en el que fueron construidos sus garajes. Esos son los valores que usaremos para imputar.
+
+year_corregido<- c()
+for(j in 1:length(vecindario_precioGaraje$GarageYrBlt)) {
+  if(is.na(vecindario_precioGaraje$GarageYrBlt[j])) {
+    #obtenemos el vecindario correspondiente al NA
+    vecindario = vecindario_precioGaraje$Neighborhood[j]
+    #ahora que conocemos el vecindario, tenemos que saber cual es el año que le corresponde
+        #Dentro de la lista de vecindarios, sacamos su numero de fila
+    index_vecindario = which(grepl(vecindario, vecindario_agrupado$Neighborhood))
+    
+    #Entramos en este if porque hay dos vecindarios: Sawyer y SawyerW. Cuando buscamos el 
+    #de Sawyer nos da el indice de los dos vecindarios, asi que nos quedamos con el primero.
+    if (length(index_vecindario)>1){
+      index_vecindario = index_vecindario[1]
+    }
+    year_a_imputar = vecindario_agrupado[index_vecindario,2]
+    
+    na.rm=TRUE
+    year_corregido<-c(year_corregido,year_a_imputar)
+  }
+  else {
+    year_corregido<-c(year_corregido,vecindario_precioGaraje$GarageYrBlt[j])
+    next 
+  }
+}
+
+year_corregido<- unlist(year_corregido)
+length(year_corregido)
+
+#actualizamos la columna en el dataset
+train_test["GarageYrBlt"]<-year_corregido
+train_test$GarageYrBlt
+
+library(dplyr)
+vecindario_agrupado2 <- vecindario_precioGaraje %>% 
+    group_by(Neighborhood) %>% 
+    summarise(mean_data = round(mean(GarageYrBlt,na.rm=TRUE),0))
+summary(vecindario_agrupado2)
 
 ```
 
 
+Y ya tendríamos todas las columnas con missing imputadas. Hay que destacar que hemos imputado los valores faltantes en todo el dataset (menos validación, como es obvio), más adelante separaremos en train y test.
 
 
 5. Transformaciones de variables cuantitativas (1 punto)
-
-
-
-
-6. Procesado de variables cualitativas (1 punto)
 
 ```{r}
 
@@ -739,9 +596,9 @@ return_levels_garage <- function(elements) {
 
 # PoolQC
 return_levesl_poolQC <- function(elements) {
-    levesl_poolQC <- c('NA','Fa','TA','Gd','Ex')
+    levesl_poolQC <- -c('NA','Fa','TA','Gd','Ex')
     pos <- match(elements,levesl_poolQC)
-    elem <- which(levesl_poolQC %in% elements)
+    elem <- which(llevesl_poolQC %in% elements)
     return(levesl_poolQC[elem])
 }
 
@@ -785,28 +642,31 @@ library(forcats)
       train <- train %>% dplyr::mutate( BsmtFinType1 := fct_relevel(BsmtFinType2,return_position1_7))
       test <-  test %>% dplyr::mutate( BsmtFinType1 := fct_relevel(BsmtFinType2,return_position1_7))
      #GarageFinish
-      train <- train %>% dplyr::mutate( GarageFinish := fct_relevel(GarageFinish,return_levels_garage))
-      test <-  test %>% dplyr::mutate( GarageFinish := fct_relevel(GarageFinish,return_levels_garage))
+      #train <- train %>% dplyr::mutate( GarageFinish := fct_relevel(GarageFinish,return_levels_garage))
+      #test <-  test %>% dplyr::mutate( GarageFinish := fct_relevel(GarageFinish,return_levels_garage))
       # PoolQC
-      train <- train %>% dplyr::mutate( PoolQC := fct_relevel(PoolQC,return_levesl_poolQC))
-      test <-  test %>% dplyr::mutate( PoolQC := fct_relevel(PoolQC,return_levesl_poolQC))
+      #train <- train %>% dplyr::mutate( PoolQC := fct_relevel(PoolQC,return_levesl_poolQC))
+      #test <-  test %>% dplyr::mutate( PoolQC := fct_relevel(PoolQC,return_levesl_poolQC))
 
+      
+      
+  #for(i in var_nominales) {
+  #   train <- train %>% dplyr::mutate( !!i := factor(!!i))
+  #}
+      
+      
 # YearBuilt: a ver que hacemos con esta
 # YearRemodAdd: y esta lo mismo
-   
-var_nominales <- c('MSSubClass','MSZoning','Street','Alley','LandContour','LotConfig','Neighborhood','Condition1','Condition2','BldgType','HouseStyle','RoofStyle','RoofMatl','Exterior1st','Exterior2nd','MasVnrType','Foundation','Heating','GarageType','MiscFeature', 'SaleType','SaleCondition')     
       
-       
-# para dummify variables si es necesario tenemos esta funcion del paquete dataexplorer
-#train <- dummify(train, maxcat = 50L, select = var_nominales)
-   
+
 ```
 
 
 
+6. Procesado de variables cualitativas (1 punto)
+
+
+
 7. Selección de variables (1 punto)
-
 8. Ajuste, interpretación y diagnosis del modelo de regresión lineal múltiple (2 puntos)
-
-
 9. Valoración del profesor (1 punto)
