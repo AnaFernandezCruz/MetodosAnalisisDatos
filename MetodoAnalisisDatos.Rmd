@@ -748,6 +748,32 @@ Y ya tendríamos todas las columnas con missing imputadas. Hay que destacar que 
 
 5. Transformaciones de variables cuantitativas (1 punto)
 
+```{r}
+
+firsrtFlrSF <- '1stFlrSF'
+secondFlrSF   <- '2ndFlrSF'
+thirdSsnPorch <- '3SsnPorch'
+
+train <- train %>% dplyr::mutate( TotalSF = TotalBsmtSF + !!as.symbol(firsrtFlrSF) + !!as.symbol(secondFlrSF)  )
+ train <- train %>% dplyr::mutate( Total_Bathrooms = FullBath + 0.5*HalfBath +  BsmtFullBath + 0.5*BsmtHalfBath )
+ train <- train %>% dplyr::mutate( Total_porch_SF = OpenPorchSF +!!as.symbol(thirdSsnPorch) +  EnclosedPorch + ScreenPorch + WoodDeckSF )
+ train <- train %>% dplyr::mutate( TotalSqrFootage = BsmtFinSF1 + BsmtFinSF2 + !!as.symbol(firsrtFlrSF) + !!as.symbol(secondFlrSF)  )
+ 
+test <- test %>% dplyr::mutate( TotalSF = TotalBsmtSF + !!as.symbol(firsrtFlrSF) + !!as.symbol(secondFlrSF)  )
+ test <- test %>% dplyr::mutate( Total_Bathrooms = FullBath + 0.5*HalfBath +  BsmtFullBath + 0.5*BsmtHalfBath )
+ test <- test %>% dplyr::mutate( Total_porch_SF = OpenPorchSF +!!as.symbol(thirdSsnPorch) +  EnclosedPorch + ScreenPorch + WoodDeckSF ) 
+ test <- test %>% dplyr::mutate( TotalSqrFootage = BsmtFinSF1 + BsmtFinSF2 + !!as.symbol(firsrtFlrSF) + !!as.symbol(secondFlrSF)  )
+ 
+ 
+train_test <- train_test %>% dplyr::mutate( TotalSF = TotalBsmtSF + !!as.symbol(firsrtFlrSF) + !!as.symbol(secondFlrSF)  )
+ train_test <- train_test %>% dplyr::mutate( Total_Bathrooms = FullBath + 0.5*HalfBath +  BsmtFullBath + 0.5*BsmtHalfBath )
+ train_test <- train_test %>% dplyr::mutate( Total_porch_SF = OpenPorchSF +!!as.symbol(thirdSsnPorch) +  EnclosedPorch + ScreenPorch + WoodDeckSF ) 
+ train_test <- train_test %>% dplyr::mutate( TotalSqrFootage = BsmtFinSF1 + BsmtFinSF2 + !!as.symbol(firsrtFlrSF) + !!as.symbol(secondFlrSF)  ) 
+ 
+ 
+ 
+ 
+```
 
 
 
@@ -881,15 +907,42 @@ library(forcats)
 
 # YearBuilt: a ver que hacemos con esta (discretizarla)
 # YearRemodAdd: y esta lo mismo (discretizarla)
+train$YearBuilt <- cut(train$YearBuilt, 
+                   breaks=c(-Inf, 1930, 1960, 1990,Inf), 
+                   labels=c("1900-1930","1930-1960","1960-1990","1990-"))   
+test$YearBuilt <- cut(test$YearBuilt, 
+                   breaks=c(-Inf, 1930, 1960, 1990,Inf), 
+                   labels=c("1900-1930","1930-1960","1960-1990","1990-"))   
+
       
-      
+train$YearRemodAdd <- cut(train$YearRemodAdd, 
+                   breaks=c(-Inf, 1930, 1960, 1990,Inf), 
+                   labels=c("1900-1930","1930-1960","1960-1990","1990-"))   
+test$YearRemodAdd <- cut(test$YearRemodAdd, 
+                   breaks=c(-Inf, 1930, 1960, 1990,Inf), 
+                   labels=c("1900-1930","1930-1960","1960-1990","1990-"))   
+
+    
 # creamos nuevas variablea que indiquen si la casa tiene piscina, segunda planta, etc
 #PoolArea,2ndFlrSF,GarageArea,TotalBsmtSF,Fireplaces
       
-   
-var_nominales <- c('MSSubClass','MSZoning','Street','Alley','LandContour','LotConfig','Neighborhood','Condition1','Condition2','BldgType','HouseStyle','RoofStyle','RoofMatl','Exterior1st','Exterior2nd','MasVnrType','Foundation','Heating','GarageType','MiscFeature', 'SaleType','SaleCondition')     
-      
-       
+test <-  test %>% dplyr::mutate( hasPool := ifelse(PoolArea > 0, "True", "False")) 
+train <-  train %>% dplyr::mutate( hasPool := ifelse(PoolArea > 0, "True", "False"))       
+ 
+test <-  test %>% dplyr::mutate( hasGarage := ifelse(GarageArea > 0, "True", "False")) 
+train <-  train %>% dplyr::mutate( hasGarage := ifelse(GarageArea > 0, "True", "False"))  
+ 
+test <-  test %>% dplyr::mutate( hasBasement := ifelse(TotalBsmtSF > 0, "True", "False")) 
+train <-  train %>% dplyr::mutate( hasBasement := ifelse(TotalBsmtSF > 0, "True", "False")) 
+ 
+test <-  test %>% dplyr::mutate( hasFirePlaces := ifelse(Fireplaces > 0, "True", "False")) 
+train <-  train %>% dplyr::mutate( hasFirePlaces := ifelse(Fireplaces > 0, "True", "False")) 
+
+ 
+test <-  test %>% dplyr::mutate( has2ndFloor := ifelse(!!as.symbol(secondFlrSF)  > 0, "True", "False")) 
+train <-  train %>% dplyr::mutate( has2ndFloor := ifelse(!!as.symbol(secondFlrSF)  > 0, "True", "False")) 
+    
+
 # para dummify variables si es necesario tenemos esta funcion del paquete dataexplorer
 #train <- dummify(train, maxcat = 50L, select = var_nominales)
    
