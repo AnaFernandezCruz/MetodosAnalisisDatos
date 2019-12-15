@@ -764,10 +764,13 @@ test <- test %>% dplyr::mutate( TotalSF = TotalBsmtSF + !!as.symbol(firsrtFlrSF)
  test <- test %>% dplyr::mutate( Total_porch_SF = OpenPorchSF +!!as.symbol(thirdSsnPorch) +  EnclosedPorch + ScreenPorch + WoodDeckSF ) 
  test <- test %>% dplyr::mutate( TotalSqrFootage = BsmtFinSF1 + BsmtFinSF2 + !!as.symbol(firsrtFlrSF) + !!as.symbol(secondFlrSF)  )
  
- 
+# esta variable tiene los pies cuadrados "oficiales" del interior de la casa
 train_test <- train_test %>% dplyr::mutate( TotalSF = TotalBsmtSF + !!as.symbol(firsrtFlrSF) + !!as.symbol(secondFlrSF)  )
+# esta variable tiene los pies cuadrados de los cuartos de baño de la casa
  train_test <- train_test %>% dplyr::mutate( Total_Bathrooms = FullBath + 0.5*HalfBath +  BsmtFullBath + 0.5*BsmtHalfBath )
+ # esta variable tiene los pies cuadrados del porche
  train_test <- train_test %>% dplyr::mutate( Total_porch_SF = OpenPorchSF +!!as.symbol(thirdSsnPorch) +  EnclosedPorch + ScreenPorch + WoodDeckSF ) 
+ # esta variable tiene los pies cuadrados finalizados de la casa (tiene en cuenta las variables de sotano acabado y no tiene en cuenta la variable TotalBsmtSF)
  train_test <- train_test %>% dplyr::mutate( TotalSqrFootage = BsmtFinSF1 + BsmtFinSF2 + !!as.symbol(firsrtFlrSF) + !!as.symbol(secondFlrSF)  ) 
  
  
@@ -905,8 +908,8 @@ library(forcats)
       train <- train %>% dplyr::mutate( PoolQC := fct_relevel(PoolQC,return_levesl_poolQC))
       test <-  test %>% dplyr::mutate( PoolQC := fct_relevel(PoolQC,return_levesl_poolQC))
 
-# YearBuilt: a ver que hacemos con esta (discretizarla)
-# YearRemodAdd: y esta lo mismo (discretizarla)
+# YearBuilt: discretizamos la variable en tramos
+# YearRemodAdd: discretizamos la variable en tramos
 train$YearBuilt <- cut(train$YearBuilt, 
                    breaks=c(-Inf, 1930, 1960, 1990,Inf), 
                    labels=c("1900-1930","1930-1960","1960-1990","1990-"))   
