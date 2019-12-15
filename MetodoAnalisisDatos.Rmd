@@ -1,49 +1,153 @@
 ---
 title: "Métodos de Análisis de Datos"
 author: "Ana Fernández Cruz, Jesús Gallego Olivas y Miguel Ángel Sánchez Alcázar."
+date: "19 de Diciembre de 2019"
 output: html_document
 ---
 
-A continuación, se detallan los diferentes apartados evaluables en el desarrollo de la práctica y su puntuación. La puntuación completa corresponde al correcto uso, y justificación, de cada una de las técnicas empleadas.
+```{r load_libraries, message=FALSE, warning=FALSE, echo=FALSE}
 
-1. Uso de herramienta/s de control de versiones (1 punto)
-
-Para el control de versiones utilizaremos github. El repositorio se encuentra en https://github.com/AnaFernandezCruz/MetodosAnalisisDatos
-
-2. Definición de objetivos (1 punto)
-
-La presente práctica intentará crear un modelo de regresión lineal múltiple para un dataset con las siguientes características. La variable que se intentará inferir será la esperanza de vida
-
-
-3. Análisis exploratorio inicial (1 punto)
-
-Antes de empezar a realizar la práctica tenemos que cargar los dataset incluidos en la página de Kaggle, unificarlos en un solo dataset y dividirlo en train/test/validación. Para ello:
-
-```{r message=FALSE, warning=FALSE}
 library(readr)
 library(dplyr)
+library(tidyverse)
+library(DataExplorer)
+library(skimr)
+library(pander)
+library(VIM)
+library(ggplot2)
+library(caret)
+library(MASS)
+library(forcats)
+library(ggpubr)
+library(corrr)
+library(moments)
 
-pathDatos = './Dataset/'
-pathLocal = './'
-fileTrain = paste(pathDatos,"train.csv",sep="", collapse = NULL)
-fileTest = paste(pathDatos,"test.csv",sep="", collapse = NULL)
-fileDatosPK = paste(pathDatos,"sample_submission.csv",sep="", collapse = NULL)
-fileDatosTrainTest = paste(pathLocal,"train_test.csv",sep="", collapse = NULL)
-fileDatosValidacion = paste(pathLocal,"validacion.csv",sep="", collapse = NULL)
+
+seed <- 456
+
+```
+
+```{r load_functions, message=FALSE, warning=FALSE, echo=FALSE}
+
+# Funcion que divide un dataframe en dos grupos, el primero con un % que indiques por la variable per. El resto % en el segundo grupo.
+
+split_dataframe <- function(df, per){
+  set.seed(seed) 
+  split <- sample(nrow(df), nrow(df) * per)
+  return(list(df[split,], df[-split,]))
+}
+
+```
+
+En este informe se detalla el estudio realizado sobre un dataset que recoge información relevante de las viviendas en Boston. El estudio, intentara mediante un modelo de regresión lineal múltiple, **predecir el valor de la vivienda**.
+
+Para el control de versiones utilizaremos github. El repositorio se encuentra en https://github.com/AnaFernandezCruz/MetodosAnalisisDatos .
+
+Antes de empezar a realizar el estudio debemos unificar los datos. Inicialmente los disponemos en tres archivos csv, 'train.csv', 'test.csv' y 'sample_submission.csv'.
+
+```{r ready_files, message=FALSE, warning=FALSE, echo=FALSE}
+
+# Cargamos los tres archivos
+train_kaggle_ok <- read_csv('./Dataset/train.csv')
+test_kaggle <- read_csv('./Dataset/test.csv')
+test_kaggle_pk <- read_csv('./Dataset/sample_submission.csv')
+
+# Merge el dataset test y sample_submission, ahora tendremos un dataset completo
+test_kaggle_ok <- merge(test_kaggle, test_kaggle_pk, by="Id")
+
+# Unificamos los dos dataset train.csv y test.csv
+full_dataset <- rbind(train_kaggle_ok, test_kaggle_ok)
+
+```
+
+Despues de unirlos bajo un solo dataset, lo separemos de manera aleatoria en dos grupos. El primer grupo sera el 10% del total y lo utilizaremos como validación. Este dataset lo utilizaremos al final del estudio para comprobar como funciona nuestro modelo. El resto de los datos, el 90% faltante, lo utilizaremos para training y testing.
+
+```{r validation_dataset, message=FALSE, warning=FALSE, echo=FALSE}
+
+#Dividimos el dataset 10% - 90%
+list_split <- full_dataset %>% split_dataframe(.1)
+
+validation <- list_split[[1]]  # 10%
+dataset <- list_split[[2]]     # 90%
+
+#Guardamos el dataset de validacion en un archivo csv
+write.csv(validation, './validation.csv', row.names=F)
+  
+```
+
+---------------------------------------------------------------------------------------
+
+## Análisis exploratorio inicial de los datos (EDA)
+
+Realizaremos un primer resumen del estado del dataset:
+
+```{r message=FALSE, warning=FALSE}
+
+introduce(dataset)
+
+```
+
+Vemos que el dataset está dividio en:
+
+* 81 variables distintas, en las que una de ellas es la clave principal (denominada Id) que no debermos tener en cuenta en el análisis de regresión. De estas variables, 43 son discretas y 38 contínuas. Vemos también que hay una gran cantidad de "missings" y el valor de "complete_row" es cero, lo que indica que ha habido algún problema con la lectura del dataset en algunas columnas.
+
+Realizaremos un gráfico mirando la distribución de los datos por tipos y otra información que la anterior tabla ya incluía:
+
+```{r message=FALSE, warning=FALSE}
+
+plot_intro(dataset)
+
+```
+
+Como hemos indicado antes, vemos que este gráfico muestra en los valores de "complete rows" un valor del 0%, lo cuál parece indicar un problema con alguna columna en particular. Lo que observamos es que el valor NA es un valor de algunas de las columnas válido, con lo que habría que corregir esto para estas columnas y volver a hacer el análisis. Supondremos que para estas columnas no existe ningún valor genuinamente en blanco:
+
+**Alley:** NA-No alley access, **BsmtQual:** NA-No Basement, **BsmtCond:** NA-No Basement, **BsmtExposure:** NA-No Basement, **BsmtFinType1:** NA-No Basement, **BsmtFinType2:** NA-No Basement, **GarageType:** NA-No Garage, **GarageFinish:** NA-No Garage, **GarageQual:** NA-No Garage, **GarageCond:** NA-No Garage, **PoolQC:** NA-No Pool, **Fence:** NA-No Fence, **MiscFeature:**NA-None
+ 
+El siguiente código realiza la transformación anterior:
+   
+```{r keep_integrity, message=FALSE, warning=FALSE}
+
+cols_remove_nas <-c('Alley','BsmtQual','BsmtCond','BsmtExposure','BsmtFinType1','BsmtFinType2','GarageType','GarageFinish','GarageQual','GarageCond','PoolQC','Fence','MiscFeature','FireplaceQu')
+
+dataset <- mutate_at(dataset, cols_remove_nas, 
+          list(~ifelse(is.na(.), 'NA',.)) )
+```
+
+
+```{r train_test, message=FALSE, warning=FALSE}
+
+#Dividimos el dataset 70% - 30%
+list_split <- dataset %>% split_dataframe(.7)
+
+train <- list_split[[1]]  # 70%
+test <- list_split[[2]]     # 30%
+
+```
+
+
+```{r message=FALSE, warning=FALSE, echo=FALSE}
+
+#pathDatos = './Dataset/'
+#pathLocal = './'
+#fileTrain = paste(pathDatos,"train.csv",sep="", collapse = NULL)
+#fileTest = paste(pathDatos,"test.csv",sep="", collapse = NULL)
+#fileDatosPK = paste(pathDatos,"sample_submission.csv",sep="", collapse = NULL)
+#fileDatosTrainTest = paste(pathLocal,"train_test.csv",sep="", collapse = NULL)
+#fileDatosValidacion = paste(pathLocal,"validacion.csv",sep="", collapse = NULL)
 
 borra_columnas_muchos_faltantes = FALSE
 borra_columnas_incomodas = FALSE
 columnas_borrar_faltantes <- c('FireplaceQu','Fence','Alley','MiscFeature','PoolQC','GarageType','GarageCond','GarageQual','GarageFinish','GarageYrBit','LoftFrontage')
 columnas_borrar_incomodas <- c('BsmtFinType1','LowQualFinSF','MasVnrArea','BsmtHalfBath','EnclosedPorch','KitchenAbvGr','MiscVal','PoolArea','ScreenPorch','Utilities','Condition2','RoofMalt','Heating','Street')
 
-    train_kaggle <- read_csv(fileTrain)
-    head(train_kaggle)
+#train_kaggle <- read_csv(fileTrain)
+ #   head(train_kaggle)
     
-    test_kaggle <- read_csv(fileTest)
-    head(test_kaggle)
+  #  test_kaggle <- read_csv(fileTest)
+   # head(test_kaggle)
     
-    claves_primarias <- read_csv(fileDatosPK)
-    head(claves_primarias)
+    #claves_primarias <- read_csv(fileDatosPK)
+    #head(claves_primarias)
     
     #Mergeamos el archivo de train y test ya que tienen las mismas columnas.
     
@@ -55,201 +159,142 @@ columnas_borrar_incomodas <- c('BsmtFinType1','LowQualFinSF','MasVnrArea','BsmtH
     
     
     ## Completamos test con la columna que falta
-    total_test <- merge(test_kaggle,claves_primarias,by="Id")
+    #total_test <- merge(test_kaggle,claves_primarias,by="Id")
     
     # Unimos train y test completo
-    full_dataset <- rbind(train_kaggle,total_test)
+    #full_dataset <- rbind(train_kaggle,total_test)
     
     ## Desordenamos todo el dataset
-    set.seed(42)
-    rows <- sample(nrow(full_dataset))
-    full_dataset <- full_dataset[rows, ]
+    #set.seed(42)
+    #rows <- sample(nrow(full_dataset))
+    #full_dataset <- full_dataset[rows, ]
 
     
     ## Conseguimos el 10% para validacion
-    split_validacion <-sort(sample(nrow(full_dataset), nrow(full_dataset)*.1))
+    #split_validacion <-sort(sample(nrow(full_dataset), nrow(full_dataset)*.1))
 
     
 
-    if(borra_columnas_muchos_faltantes) {
+    #if(borra_columnas_muchos_faltantes) {
     
       #full_dataset = subset( full_dataset, select = -columnas_borrar_faltantes)
-      full_dataset <- full_dataset %>% dplyr::select(-one_of(columnas_borrar_faltantes))
+     # full_dataset <- full_dataset %>% dplyr::select(-one_of(columnas_borrar_faltantes))
     
-    }
+  #  }
   
-    if(borra_columnas_incomodas) {
+   # if(borra_columnas_incomodas) {
       #full_dataset = subset( full_dataset, select = -columnas_borrar_faltantes)
-      full_dataset <- full_dataset %>% select(-one_of(columnas_borrar_incomodas))
-    }
+    #  full_dataset <- full_dataset %>% select(-one_of(columnas_borrar_incomodas))
+    #}
     
-    validacion <-full_dataset[split_validacion, ]
-    if(!file.exists(fileDatosTrainTest)) {
-      write.csv(validacion, fileDatosValidacion,row.names=F)
-    }
+    #validacion <-full_dataset[split_validacion, ]
+    #if(!file.exists(fileDatosTrainTest)) {
+     # write.csv(validacion, fileDatosValidacion,row.names=F)
+    #}
     
-    train_test<-full_dataset[-split_validacion,]
-    if(!file.exists(fileDatosTrainTest)) {
-      write.csv(train_test, fileDatosTrainTest,row.names=F)
-    }
+    #train_test<-full_dataset[-split_validacion,]
+    #if(!file.exists(fileDatosTrainTest)) {
+     # write.csv(train_test, fileDatosTrainTest,row.names=F)
+    #}
   
 
 
-train_test <- read_csv(fileDatosTrainTest)
-set.seed(55)
-dt = sort(sample(nrow(train_test), nrow(train_test)*.7))
-train<-train_test[dt,]
-test<-train_test[-dt,]
+#train_test <- read_csv(fileDatosTrainTest)
+#set.seed(55)
+#dt = sort(sample(nrow(train_test), nrow(train_test)*.7))
+#train<-train_test[dt,]
+#test<-train_test[-dt,]
 
 ```
 
-Una vez realizado el proceso de separación del dataset completo en tres partes (test, train y validación final) realizaremos un primer resumen del estdo del dataset:
+Las variables que nos encontraremos en el dataset son las siguientes:
+**MSSubClass:** La clase de construcción
+**MSZoning:** La clasificación general de zonificación
+**LotFrontage:** Pies lineales de calle conectados a la propiedad
+**LotArea:** Tamaño del lote en pies cuadrados
+**Street:** Tipo de acceso por carretera
+**Alley:** Tipo de acceso al callejón
+**LotShape:** Forma general de propiedad
+**LandContour:** Llanura de la propiedad
+**Utilities:**  Tipo de utilidades disponibles
+**LotConfig:** Configuración del lote
+**LandSlope:** Pendiente de la propiedad
+**Neighborhood:** Ubicaciones físicas dentro de los límites de la ciudad de Ames
+**Condition1:** Proximidad a la carretera principal o ferrocarril
+**Condition2:** Proximidad a la carretera principal o al ferrocarril (si hay un segundo)
+**BldgType:** Tipo de vivienda
+**HouseStyle:** Estilo de vivienda
+**OverallQual:** Material general y calidad de acabado
+**OverallCond:** Calificación de condición general
+**YearBuilt:** Fecha de construcción original
+**YearRemodAdd:** Fecha de remodelación
+**RoofStyle:** Tipo de techo
+**RoofMatl:** Material del techo
+**Exterior1st:** Cubierta exterior en la casa
+**Exterior2nd:** Revestimiento exterior de la casa (si hay más de un material)
+**MasVnrType:** Tipo de chapa de albañilería
+**MasVnrArea:** Área de revestimiento de mampostería en pies cuadrados
+**ExterQual:** Calidad del material exterior
+**ExterCond:** Condición actual del material en el exterior.
+**Foundation:** Tipo de cimiento
+**BsmtQual:** Altura del sótano
+**BsmtCond:** Estado general del sótano
+**BsmtExposure:** Paredes de sótano a nivel de jardín o de salida
+**BsmtFinType1:** Calidad del área terminada del sótano
+**BsmtFinSF1:** Tipo 1 terminado pies cuadrados
+**BsmtFinType2:** Calidad de la segunda área terminada (si está presente)
+**BsmtFinSF2:** Pies cuadrados terminados tipo 2
+**BsmtUnfSF:** Pies cuadrados inacabados de área de sótano
+**TotalBsmtSF:** Pies cuadrados totales del área del sótano
+**Heating:** Tipo de calefacción
+**HeatingQC:** Calidad y condición de calefacción
+**CentralAir:** Aire acondicionado central
+**Electrical:** Sistema eléctrico
+**1stFlrSF:** Pies cuadrados del primer piso
+**2ndFlrSF:** Pies cuadrados del segundo piso
+**LowQualFinSF:** Pies cuadrados terminados de baja calidad (todos los pisos)
+**GrLivArea:** Superficie habitable por encima del nivel del suelo (pies cuadrados)
+**BsmtFullBath:** Baños completos en el sótano
+**BsmtHalfBath:** Medio baño en el sótano
+**FullBath:** Baños completos por encima del grado
+**HalfBath:** Medio baño por encima del grado
+**Bedroom:** Número de dormitorios por encima del nivel del sótano
+**Kitchen:** Número de cocinas
+**KitchenQual:** Calidad de cocina
+**TotRmsAbvGrd:** Total de habitaciones por encima del grado (no incluye baños)
+**Functional:** Calificación de funcionalidad doméstica 
+**Fireplaces:** Número de chimeneas
+**FireplaceQu:** Calidad de chimenea
+**GarageType:** Ubicación del garaje
+**GarageYrBlt:** Año en que se construyó el garaje
+**GarageFinish:** Acabado interior del garaje
+**GarageCars:** Tamaño del garaje en la capacidad del automóvil
+**GarageArea:** Tamaño del garaje en pies cuadrados
+**GarageQual:** Calidad de garaje
+**GarageCond:** Condición del garaje
+**PavedDrive:** Entrada pavimentada
+**WoodDeckSF:** Área de cubierta de madera en pies cuadrados
+**OpenPorchSF:** Área de porche abierto en pies cuadrados
+**Porche cerrado:** Área de porche cerrado en pies cuadrados
+**EnclosedPorch:** Área de porche de tres estaciones en pies cuadrados
+**ScreenPorch:** Área del porche de la pantalla en pies cuadrados
+**PoolArea:** Área de la piscina en pies cuadrados
+**PoolQC:** Calidad de la piscina
+**Fence:** Calidad de la cerca
+**MiscFeature:** Características varias no cubiertas en otras categorías
+**MiscVal:** Valor de la característica miscelánea
+**MoSold:** Mes vendido
+**YrSold:** Año vendido
+**SaleType:** Tipo de venta
+**SaleCondition:** Condición de venta
 
+A continuación, dividiremos las variables en las siguientes categorías:
+* Variables con dominio contínuo y numérico
+* Variable con dominio numérico discreto
+* Variables descriptivas nominales (variables que toman valores alfanumérido de un conjunto finito de valores)
+* Variables descriptivas ordinales (variables que contienen una relación de orden)
 
-```{r message=FALSE, warning=FALSE}
-library(DataExplorer)
-introduce(train_test)
-```
-
-   Vemos que el dataset está dividio en:
-    * 81 variables distintas, en las que una de ellas es la clave principal (denominada Id) que no debermos tener en cuenta en el análisis de regresión. De estas variables, 43 son discretas y 38 contínuas. Vemos también que hay una gran cantidad de "missings" y el valor de "complete_row" es cero, lo que indica que ha habido algún problema con la lectura del dataset en algunas columnas.
-
-  Realizaremos un gráfico mirando la distribución de los datos por tipos y otra información que la anterior tabla ya incluía:
-
-```{r message=FALSE, warning=FALSE}
-plot_intro(train_test)
-```
-
- Como hemos indicado antes, vemos que este gráfico muestra en los valores de "complete rows" un valor del 0%, lo cuál parece indicar un problema con alguna columna en particular.  Lo que observamos es que el valor NA es un valor de algunas de las columnas válido, con lo que habría que corregir esto para estas columnas y volver a hacer el análisis. Supondremos que para estas columnas no existe ningún valor genuinamente en blanco:
-
-   Alley: NA 	No alley access
-   BsmtQual: NA	No Basement
-   BsmtCond: NA	No Basement
-   BsmtExposure: NA	No Basement
-   BsmtFinType1: NA	No Basement
-   BsmtFinType2:  NA	No Basement
-   GarageType: NA	No Garage
-   GarageFinish: NA	No Garage
-   GarageQual: : NA	No Garage
-   GarageCond: : NA	No Garage
-   PoolQC:  NA	No Pool
-   Fence:  NA	No Fence
-   MiscFeature:   NA	None
- 
- El siguiente código realiza la transformación anterior:
-   
-```{r message=FALSE, warning=FALSE}
-
-  columnas_sustitucion_nas <- c('Alley','BsmtQual','BsmtCond','BsmtExposure','BsmtFinType1','BsmtFinType2','GarageType','GarageFinish','GarageQual','GarageCond','PoolQC','Fence','MiscFeature','FireplaceQu')
-
-
-
-full_dataset <- mutate_at(full_dataset, columnas_sustitucion_nas, 
-          list(~ifelse(is.na(.), 'NA',.)) )
-
-
-train_test <- mutate_at(train_test, columnas_sustitucion_nas, 
-          list(~ifelse(is.na(.), 'NA',.)) )
-
-train <- mutate_at(train, columnas_sustitucion_nas, 
-          list(~ifelse(is.na(.), 'NA',.)) )
-
-
-test <- mutate_at(test, columnas_sustitucion_nas, 
-          list(~ifelse(is.na(.), 'NA',.)) )
-
-
-```
-   
-
- Las variables que nos encontraremos en el dataset son las siguientes:
-  * MSSubClass: la clase de construcción
-  * MSZoning: la clasificación general de zonificación
-  * LotFrontage: pies lineales de calle conectados a la propiedad
-  * LotArea: tamaño del lote en pies cuadrados
-  * Street:  tipo de acceso por carretera
-  * Alley: tipo de acceso al callejón
-  * LotShape: forma general de propiedad
-  * LandContour: llanura de la propiedad
-  * Utilities:  tipo de utilidades disponibles
-  * LotConfig: configuración del lote
-  * LandSlope: pendiente de la propiedad
-  * Neighborhood: ubicaciones físicas dentro de los límites de la ciudad de Ames
-  * Condition1:  Proximidad a la carretera principal o ferrocarril
-  * Condition2:  Proximidad a la carretera principal o al ferrocarril (si hay un segundo)
-  * BldgType: tipo de vivienda
-  * HouseStyle: estilo de vivienda
-  * OverallQual: material general y calidad de acabado
-  * OverallCond: calificación de condición general
-  * YearBuilt: fecha de construcción original
-  * YearRemodAdd: fecha de remodelación
-  * RoofStyle: tipo de techo
-  * RoofMatl: material del techo
-  * Exterior1st: cubierta exterior en la casa
-  * Exterior2nd: revestimiento exterior de la casa (si hay más de un material)
-  * MasVnrType: tipo de chapa de albañilería
-  * MasVnrArea: área de revestimiento de mampostería en pies cuadrados
-  * ExterQual: calidad del material exterior
-  * ExterCond: Condición actual del material en el exterior.
-  * Foundation: : tipo de cimiento
-  * BsmtQual: altura del sótano
-  * BsmtCond: estado general del sótano
-  * BsmtExposure: paredes de sótano a nivel de jardín o de salida
-  * BsmtFinType1: Calidad del área terminada del sótano
-  * BsmtFinSF1: Tipo 1 terminado pies cuadrados
-  * BsmtFinType2: Calidad de la segunda área terminada (si está presente)
-  * BsmtFinSF2: pies cuadrados terminados tipo 2
-  * BsmtUnfSF: pies cuadrados inacabados de área de sótano
-  * TotalBsmtSF: pies cuadrados totales del área del sótano
-  * Heating:  tipo de calefacción
-  * HeatingQC: calidad y condición de calefacción
-  * CentralAir: aire acondicionado central
-  * Electrical: sistema eléctrico
-  * 1stFlrSF: pies cuadrados del primer piso
-  * 2ndFlrSF: pies cuadrados del segundo piso
-  * LowQualFinSF: pies cuadrados terminados de baja calidad (todos los pisos)
-  * GrLivArea: superficie habitable por encima del nivel del suelo (pies cuadrados)
-  * BsmtFullBath: baños completos en el sótano
-  * BsmtHalfBath: medio baño en el sótano
-  * FullBath: baños completos por encima del grado
-  * HalfBath: medio baño por encima del grado
-  * Bedroom: número de dormitorios por encima del nivel del sótano
-  * Kitchen número de cocinas
-  * KitchenQual: calidad de cocina
-  * TotRmsAbvGrd: total de habitaciones por encima del grado (no incluye baños)
-  * Functional: calificación de funcionalidad doméstica 
-  * Fireplaces: : número de chimeneas
-  * FireplaceQu: calidad de chimenea
-  * GarageType: ubicación del garaje
-  * GarageYrBlt: año en que se construyó el garaje
-  * GarageFinish: acabado interior del garaje
-  * GarageCars: tamaño del garaje en la capacidad del automóvil
-  * GarageArea: tamaño del garaje en pies cuadrados
-  * GarageQual: calidad de garaje
-  * GarageCond: condición del garaje
-  * PavedDrive: entrada pavimentada
-  * WoodDeckSF: área de cubierta de madera en pies cuadrados
-  * OpenPorchSF: área de porche abierto en pies cuadrados
-  * Porche cerrado: área de porche cerrado en pies cuadrados
-  * EnclosedPorch:  área de porche de tres estaciones en pies cuadrados
-  * ScreenPorch: área del porche de la pantalla en pies cuadrados
-  * PoolArea: área de la piscina en pies cuadrados
-  * PoolQC: calidad de la piscina
-  * Fence: calidad de la cerca
-  * MiscFeature: características varias no cubiertas en otras categorías
-  * MiscVal: $ Valor de la característica miscelánea
-  * MoSold: Mes vendido
-  * YrSold: año vendido
-  * SaleType: tipo de venta
-  * SaleCondition: condición de venta
-
- A continuación, dividiremos las variables en las siguientes categorías:
-   * Variables con dominio contínuo y numérico
-   * Variable con dominio numérico discreto
-   * Variables descriptivas nominales  (variables que toman valores alfanumérido de un conjunto finito de valores)
-   * Variables descriptivas ordinales (variables que contienen una relación de orden)
-  
-  El siguiente código realiza la descomposición en dichas categorías para usar con posterioridad:
+El siguiente código realiza la descomposición en dichas categorías para usar con posterioridad:
 
 ```{r}
 
@@ -277,8 +322,6 @@ var_creadas_transformacion = c()
   A continuación realizaremos un pequeño informe mostrando algunas características de los datos que contienen el dataset:
 
 ```{r message=FALSE, warning=FALSE}
-library(skimr)
-library(pander)
 
 variablesReporte <- list(
   min = min,
@@ -286,23 +329,23 @@ variablesReporte <- list(
   mean = mean
 )
 #skim_with(numeric = variablesReporte, append = FALSE) 
-skim(full_dataset)  %>% pander()
+skim(train)  %>% pander()
 
 ```
 
-  Ahora nos centraremos en encontrar cuál es la distribución de missings en el dataset. Para ello, utilizaremos los siguientes gráficos:
+Ahora nos centraremos en encontrar cuál es la distribución de missings en el dataset. Para ello, utilizaremos los siguientes gráficos:
 
 ```{r message=FALSE, warning=FALSE}
-library(VIM)
-aggr(train_test)
+
+aggr(train)
 ```
 
-  Dibujaremos un histograma con la proporción de missings para las variables continuas:
+Dibujaremos un histograma con la proporción de missings para las variables continuas:
 
 ```{r}
-library(ggplot2)
 
-missing_data_continuas <- train_test %>%  dplyr::select(var_continuas)  %>% plot_missing(theme_config = list(legend.position = "bottom", axis.text.x =element_text(angle = 90),axis.text.y = element_text(size = rel(1))))
+
+missing_data_continuas <- train %>%  dplyr::select(var_continuas)  %>% plot_missing(theme_config = list(legend.position = "bottom", axis.text.x =element_text(angle = 90),axis.text.y = element_text(size = rel(1))))
 
 ```
 
@@ -312,7 +355,7 @@ missing_data_continuas <- train_test %>%  dplyr::select(var_continuas)  %>% plot
 
 ```{r}
 
-missing_data_discretas <- train_test %>%  dplyr::select(var_discretas)  %>% plot_missing(theme_config = list(legend.position = "bottom", axis.text.x =element_text(angle = 90),axis.text.y = element_text(size = rel(1))))
+missing_data_discretas <- train %>%  dplyr::select(var_discretas)  %>% plot_missing(theme_config = list(legend.position = "bottom", axis.text.x =element_text(angle = 90),axis.text.y = element_text(size = rel(1))))
 
 ```
 
@@ -322,7 +365,7 @@ missing_data_discretas <- train_test %>%  dplyr::select(var_discretas)  %>% plot
 
 ```{r}
 
-missing_data_ordinales <- train_test %>%  dplyr::select(var_ordinales)  %>% plot_missing(theme_config = list(legend.position = "bottom", axis.text.x =element_text(angle = 90),axis.text.y = element_text(size = rel(1))))
+missing_data_ordinales <- train %>%  dplyr::select(var_ordinales)  %>% plot_missing(theme_config = list(legend.position = "bottom", axis.text.x =element_text(angle = 90),axis.text.y = element_text(size = rel(1))))
 
 ```
 
@@ -330,7 +373,7 @@ missing_data_ordinales <- train_test %>%  dplyr::select(var_ordinales)  %>% plot
 
 ```{r}
 
-missing_data_nominales <- train_test %>%  dplyr::select(var_nominales)  %>% plot_missing(theme_config = list(legend.position = "bottom", axis.text.x =element_text(angle = 90),axis.text.y = element_text(size = rel(1))))
+missing_data_nominales <- train %>%  dplyr::select(var_nominales)  %>% plot_missing(theme_config = list(legend.position = "bottom", axis.text.x =element_text(angle = 90),axis.text.y = element_text(size = rel(1))))
 
 ```
 
@@ -340,7 +383,7 @@ missing_data_nominales <- train_test %>%  dplyr::select(var_nominales)  %>% plot
 
 
 ```{r}
-train_test %>%  dplyr::select(var_nominales)  %>% plot_bar()
+train %>%  dplyr::select(var_nominales)  %>% plot_bar()
 ```
 
   A la vista de estos diagramas, observamos lo siguiente:
@@ -349,8 +392,8 @@ train_test %>%  dplyr::select(var_nominales)  %>% plot_bar()
     El siguiente código detectara las variables que tienen baja varianza e intentara eliminar todas aquellas que no sean significativas en una regresión de ella con la variable salePrice :
 
 ```{r}
-library(caret)
-elementosBajaVarianza <- nearZeroVar(train_test,freqCut = 95/5,uniqueCut = 10)
+
+elementosBajaVarianza <- nearZeroVar(train,freqCut = 95/5,uniqueCut = 10)
 
 # funcion para eliminar elementos con baja correlacion
 lmp <- function (modelobject) {
@@ -364,9 +407,9 @@ lmp <- function (modelobject) {
 # estas columna dan problemas
 var_columnas_eliminadas = c(var_columnas_eliminadas,'3SsnPorch')
 
-for(i in colnames(train_test)[elementosBajaVarianza]) {
+for(i in colnames(train)[elementosBajaVarianza]) {
   if(i != '3SsnPorch') {
-    modelRegression <- lm(reformulate(termlabels = i, response = 'SalePrice') ,data=train_test)
+    modelRegression <- lm(reformulate(termlabels = i, response = 'SalePrice') ,data=train)
     if(lmp(modelRegression) >.05) {
       var_eliminar_correlacion = c(var_eliminar_correlacion,i)
     }
@@ -382,7 +425,7 @@ for(i in colnames(train_test)[elementosBajaVarianza]) {
       Ahora realizaremos el mismo análisis con las variables ordinales:
 
 ```{r}
-train_test %>%  dplyr::select(var_ordinales)  %>% plot_bar()
+train %>%  dplyr::select(var_ordinales)  %>% plot_bar()
 ```
 
    Se observan práctimante las mismas anomalías en en el caso anterior.
@@ -390,7 +433,7 @@ train_test %>%  dplyr::select(var_ordinales)  %>% plot_bar()
    Proseguiremos con las variables contínuas:
   
 ```{r}
-train_test %>%  dplyr::select(var_continuas) %>% plot_histogram()
+train %>%  dplyr::select(var_continuas) %>% plot_histogram()
 ```
 
     Los comentarios que se pueden hacer en este caso son los siguientes:
@@ -400,7 +443,7 @@ train_test %>%  dplyr::select(var_continuas) %>% plot_histogram()
    Ahora realizaremos los mismos gráficos para las variables discretas:
 
 ```{r}
-train_test %>%  dplyr::select(var_discretas) %>% plot_histogram()
+train %>%  dplyr::select(var_discretas) %>% plot_histogram()
 ```
  
      Comentarios parecidos a el análisis de distribución de las variables contínuas se pueden hacer para estas variables.
@@ -410,7 +453,7 @@ train_test %>%  dplyr::select(var_discretas) %>% plot_histogram()
 
 ```{r}
 
-ggplot(train_test, aes(x=SalePrice)) + 
+ggplot(train, aes(x=SalePrice)) + 
     geom_histogram(aes(y=..density..),      
                    binwidth=7000,
                    colour="black", fill="white") +
@@ -422,9 +465,9 @@ ggplot(train_test, aes(x=SalePrice)) +
 
 ```{r}
 
-  library(MASS)
-  fitDistribution <- fitdistr(log10(train_test$SalePrice), densfun = "normal")
-  ggplot(data = train_test) +
+  
+  fitDistribution <- fitdistr(log10(train$SalePrice), densfun = "normal")
+  ggplot(data = train) +
   geom_histogram(mapping = aes(x = log10(SalePrice), y = ..density..), col="white") +
   stat_function(fun = dnorm, 
       args = list(mean = fitDistribution$estimate[1], sd = fitDistribution$estimate[2], log = F), 
@@ -437,15 +480,15 @@ ggplot(train_test, aes(x=SalePrice)) +
 
 ```{r}
 
-library(ggpubr)
 
-graf3 <- train_test %>% dplyr::select( SalePrice) %>%
+
+graf3 <- train %>% dplyr::select(SalePrice) %>%
   na.omit() %>%
   ggplot(aes(x=0,y=SalePrice)) +
     geom_boxplot(outlier.colour="black", outlier.shape=16,
              outlier.size=2, notch=FALSE)
 
-graf4 <- train_test %>% dplyr::mutate(log10_saleprice = log10(SalePrice)) %>%
+graf4 <- train %>% dplyr::mutate(log10_saleprice = log10(SalePrice)) %>%
   dplyr::select(log10_saleprice) %>%
   na.omit() %>%
   ggplot(aes(x=0,y=log10_saleprice)) +
@@ -461,7 +504,7 @@ ggarrange(graf3,graf4)
    Ahora realizaremos un conjunto de gráficos cuantil/cuantil sobre las variables continuas y discretas para corroborar que hay pocas variables con una distribución normal:
 
 ```{r}
-train_test %>% plot_qq(sampled_rows = 1000L)
+train %>% plot_qq(sampled_rows = 1000L)
 ```
 
   Las que más se aproximan a esta distribución son: LotArea, LotFrontage, GrLivArea, TotalBsmtSF y X1stFlrSF. Este diagrama pone en evidencia también la gran cantidad de Outliers que tienen algunas variables.
@@ -469,8 +512,7 @@ train_test %>% plot_qq(sampled_rows = 1000L)
   Almacenaremos el grado de asimetría de dichas variables para en un futuro poder tener un criterio más claro de qué variables son candidatas a un tipo de transformación logarítmica:
 
 ```{r}
-library(moments)
-listasVariablesSkewness <-  na.omit(train_test %>% dplyr::select(var_continuas_discretas)) %>% skewness()
+listasVariablesSkewness <-  na.omit(train %>% dplyr::select(var_continuas_discretas)) %>% skewness()
 listasVariablesSkewness
 variablesSkewnessAlto <- c('LotArea','LowQualFinSF','3SsnPorch','PoolArea','MiscVal')  
 ```
@@ -479,8 +521,8 @@ variablesSkewnessAlto <- c('LotArea','LowQualFinSF','3SsnPorch','PoolArea','Misc
 
 
 ```{r}
-library(ggplot2)
-splitDataset <- split_columns(train_test, binary_as_factor = FALSE)
+
+splitDataset <- split_columns(train, binary_as_factor = FALSE)
 plot_correlation(na.omit(splitDataset$continuous), type = "c" ,maxcat = 5L,theme_config = list(legend.position = "bottom", axis.text.x =element_text(angle = 90),axis.text.y = element_text(size = rel(0.4))  ))
 ```
 
@@ -488,8 +530,8 @@ plot_correlation(na.omit(splitDataset$continuous), type = "c" ,maxcat = 5L,theme
 
 ```{r}
 
-library(corrr)
-corrmatrix <-corrr::correlate(na.omit(train_test %>% dplyr::select(var_continuas)))
+
+corrmatrix <-corrr::correlate(na.omit(train %>% dplyr::select(var_continuas)))
 rplot(corrmatrix, legend = TRUE, shape = 16)
 network_plot(corrmatrix)
 
@@ -497,19 +539,19 @@ network_plot(corrmatrix)
 ```
 
 ```{r}
-corrmatrix2 <-corrr::correlate(na.omit(train_test %>% dplyr::select(var_discretas)))
+corrmatrix2 <-corrr::correlate(na.omit(train %>% dplyr::select(var_discretas)))
 rplot(corrmatrix2, legend = TRUE, shape = 16)
 network_plot(corrmatrix2)
 
-corrmatrix3 <-corrr::correlate(na.omit(train_test %>% dplyr::select(var_continuas_discretas)))
+corrmatrix3 <-corrr::correlate(na.omit(train %>% dplyr::select(var_continuas_discretas)))
 rplot(corrmatrix3, legend = TRUE, shape = 16)
 network_plot(corrmatrix3)
 ```
 
 
 ```{r}
-library(caret)
-correlacionesProblematicas <- findCorrelation(cor(na.omit(train_test %>% dplyr::select(var_continuas_discretas))),cutoff = 0.8, verbose = FALSE, names = TRUE)
+
+correlacionesProblematicas <- findCorrelation(cor(na.omit(train %>% dplyr::select(var_continuas_discretas))),cutoff = 0.8, verbose = FALSE, names = TRUE)
 correlacionesProblematicas
 ```
 
@@ -519,7 +561,7 @@ correlacionesProblematicas
 
 ```{r}
 
- na.omit(train_test %>% dplyr::select(var_continuas)) %>% plot_scatterplot( by = "SalePrice", sampled_rows = 1000L) 
+ na.omit(train %>% dplyr::select(var_continuas)) %>% plot_scatterplot( by = "SalePrice", sampled_rows = 1000L) 
 
 #geom_smooth(method=lm, se=FALSE, fullrange=TRUE)
 
@@ -540,7 +582,7 @@ correlacionesProblematicas
 ```{r}
 library(EnvStats)
 listaOutliers <- list()
-dataset_var_continuas <- train_test %>% dplyr::select(var_continuas)
+dataset_var_continuas <- train %>% dplyr::select(var_continuas)
 iterator = 1 
 for(i in colnames(dataset_var_continuas)) {
   outlier_values <- boxplot.stats(dataset_var_continuas[[i]])$out
@@ -598,17 +640,17 @@ Para hacer un análisis de los datos que nos faltan vamos a utilizar la bibliote
     
 ```{r warning=FALSE,fig.width=40, fig.height=30}
     library(VIM)
-    aggr_plot <- aggr(train_test,col=c('navyblue','red'), numbers=TRUE, sortVars=TRUE, cex.axis=.7, gap=3, ylab=c("Histogram of missing data","Pattern"))
+    aggr_plot <- aggr(train,col=c('navyblue','red'), numbers=TRUE, sortVars=TRUE, cex.axis=.7, gap=3, ylab=c("Histogram of missing data","Pattern"))
 ```
     
 Como hay muchas variables que no tienen valores faltantes, vamos a crear un dataset únicamente con las columnas que tienen missings para poder analizar mejor los datos. Para ello:
     
 ```{r warning=FALSE}
-    na_counts <- sapply(train_test, function(x) sum(is.na(x)))
+    na_counts <- sapply(train, function(x) sum(is.na(x)))
     na_counts_sort <- sort(na_counts, decreasing = TRUE)
     na_counts_sort <- na_counts_sort[1:20]
     (na_counts_sort)
-    train_test_na <- train_test %>% select(LotFrontage, GarageYrBlt, MasVnrType, MasVnrArea, MSZoning, Functional, Exterior1st, Exterior2nd, Electrical, BsmtFinSF1, BsmtFinSF2, BsmtUnfSF, KitchenQual, TotalBsmtSF, BsmtFullBath, BsmtHalfBath, GarageCars, GarageArea, SaleType)
+    train_test_na <- train %>% dplyr::select(LotFrontage, GarageYrBlt, MasVnrType, MasVnrArea, MSZoning, Functional, Exterior1st, Exterior2nd, Electrical, BsmtFinSF1, BsmtFinSF2, BsmtUnfSF, KitchenQual, TotalBsmtSF, BsmtFullBath, BsmtHalfBath, GarageCars, GarageArea, SaleType)
     aggr_plot <- aggr(train_test_na,col=c('navyblue','red'), numbers=TRUE, sortVars=TRUE, cex.axis=.7, gap=3, ylab=c("Histogram of missing data","Pattern"))
 ```
     
@@ -617,11 +659,11 @@ Ahora podemos prestar verdadera atención a las columnas con datos faltantes.
 Si nos fijamos en la columna que más datos faltantes tiene, podemos ver en la descripción del dataset que son la cantidad de pies lineales que hay de acera hasta la puerta de la casa. Además, leyendo la documentación del dataset vemos que los NA's no significa que no tengan conexión con la acera (un edificio de varios pisos por ejemplo), sino que son datos faltantes. Hemos considerado que una columna con más de un 15% de datos faltantes nos va a desbalancear el dataset drásticamente, por lo que vamos a prescindir de este valor para nuestro estudio y para la imputación de missings, por lo que la borramos del dataset.
     
 ```{r message=FALSE, warning=FALSE, echo=FALSE}
-train<-select(train, -LotFrontage)
-test<-select(test, -LotFrontage)
-train_test<-select(train_test, -LotFrontage)
-train_test_na<-select(train_test_na, -LotFrontage)
-full_dataset<-select(full_dataset, -LotFrontage)
+train<- dplyr::select(train, -LotFrontage)
+test<- dplyr::select(test, -LotFrontage)
+#train_test<- dplyr::select(train_test, -LotFrontage)
+train_test_na<- dplyr::select(train_test_na, -LotFrontage)
+#full_dataset<- dplyr::select(full_dataset, -LotFrontage)
 ```
 
 ```{r warning=FALSE}
@@ -649,17 +691,18 @@ Para el caso de las variables cuya proporción de missings es menor que el 3% (<
 Para imputar de manera eficaz y sin tener que analizar por separado las variables categóricas de las cuantitativas vamos a utilizar la biblioteca HMISC. Esta biblioteca tiene dos funciones altamente potentes: impute() y aregImpute(). Se diferencian entre sí en que en la segunda puedes utilizar regresiones, bootstrapping y otros métodos para imputar valores.
 
 ```{r}
-summary_antes_imputar <- summary(train_test)
+summary_antes_imputar <- summary(train)
 #para las variables cuantitativas con una proporción del faltantes menor que el 3%,
 #imputaremos el valor de la media
 cuantitativas <- c('MasVnrArea','GarageCars','GarageArea', 'BsmtFinSF1', 'BsmtFinSF2', 'BsmtUnfSF', 'TotalBsmtSF','BsmtFullBath', 'BsmtHalfBath')
+
 for (i in cuantitativas){
-  list_values <- ifelse(is.na(train_test[[i]]), 
-                       round(mean(train_test[[i]], na.rm=TRUE), 0), train_test[[i]])
-  train_test[[i]] <- list_values
+  list_values <- ifelse(is.na(train[[i]]), 
+                       round(mean(train[[i]], na.rm=TRUE), 0), train[[i]])
+  train[[i]] <- list_values
   }
 
-train_test
+train
 #para variables categoricas con una proporción de datos faltantes menor que el 3%
 #vamos a imputar el valor más frecuente.  
 
@@ -667,33 +710,32 @@ train_test
 categoricas <- c('MasVnrType', 'MSZoning', 'Functional', 'Electrical',
 'KitchenQual', 'SaleType', 'Exterior1st', 'Exterior2nd',  'Utilities')
 for (i in cuantitativas){
-  y = as.data.frame(table(unlist(train_test[[i]])))
+  y = as.data.frame(table(unlist(train[[i]])))
   sorted_list <-y[with(y, order(-Freq)),]
   frecuent_value <- sorted_list$Var1[1]
   list_values <- c()
-  for(j in 1:length(train_test[[i]])) {
-    if(is.na(train_test[[i]][j])) {
-      train_test[[i]][j] = frecuent_value
+  for(j in 1:length(train[[i]])) {
+    if(is.na(train[[i]][j])) {
+      train[[i]][j] = frecuent_value
       na.rm=TRUE
-      list_values = c(list_values, train_test[[i]][j])
+      list_values = c(list_values, train[[i]][j])
     }
     else {
-      list_values = c(list_values, train_test[[i]][j])
+      list_values = c(list_values, train[[i]][j])
     }
   }
-  train_test[[i]] <- list_values
+  train[[i]] <- list_values
 }
 
-summary_despues_imputar <- summary(train_test)
+summary_despues_imputar <- summary(train)
 ```
 
 Solo nos faltaría una variable por imputar sus valores: GarageYrBlt. Esta columna indica el año en el que se construyó el garaje de la propiedad. No lo vamos a imputar con el valor medio ya que la proporción de datos faltantes es mayor al 3%, así que lo que proponemos para su imputación es lo siguiente: ya que conocemos el vecindario al que pertenecen los pisos, es lógico que el año de construcción del garaje sea similar para todo el vecindario. Vamos a proceder a agrupar los garages por vecindario e imputaremos el año medio correspondiente.
 
 ```{r}
-library(tidyverse)
-vecindario_precioGaraje<- train_test %>% select(Neighborhood, GarageYrBlt)
+vecindario_precioGaraje<- train %>% dplyr::select(Neighborhood, GarageYrBlt)
 
-library(dplyr)
+
 vecindario_agrupado <- vecindario_precioGaraje %>% 
     group_by(Neighborhood) %>% 
     summarise(mean_data = round(mean(GarageYrBlt,na.rm=TRUE),0))
@@ -731,10 +773,10 @@ year_corregido<- unlist(year_corregido)
 length(year_corregido)
 
 #actualizamos la columna en el dataset
-train_test["GarageYrBlt"]<-year_corregido
-train_test$GarageYrBlt
+train["GarageYrBlt"]<-year_corregido
+train$GarageYrBlt
 
-library(dplyr)
+
 vecindario_agrupado2 <- vecindario_precioGaraje %>% 
     group_by(Neighborhood) %>% 
     summarise(mean_data = round(mean(GarageYrBlt,na.rm=TRUE),0))
@@ -765,13 +807,16 @@ test <- test %>% dplyr::mutate( TotalSF = TotalBsmtSF + !!as.symbol(firsrtFlrSF)
  test <- test %>% dplyr::mutate( TotalSqrFootage = BsmtFinSF1 + BsmtFinSF2 + !!as.symbol(firsrtFlrSF) + !!as.symbol(secondFlrSF)  )
  
 # esta variable tiene los pies cuadrados "oficiales" del interior de la casa
-train_test <- train_test %>% dplyr::mutate( TotalSF = TotalBsmtSF + !!as.symbol(firsrtFlrSF) + !!as.symbol(secondFlrSF)  )
+train <- train %>% dplyr::mutate( TotalSF = TotalBsmtSF + !!as.symbol(firsrtFlrSF) + !!as.symbol(secondFlrSF)  )
+
 # esta variable tiene los pies cuadrados de los cuartos de baño de la casa
- train_test <- train_test %>% dplyr::mutate( Total_Bathrooms = FullBath + 0.5*HalfBath +  BsmtFullBath + 0.5*BsmtHalfBath )
- # esta variable tiene los pies cuadrados del porche
- train_test <- train_test %>% dplyr::mutate( Total_porch_SF = OpenPorchSF +!!as.symbol(thirdSsnPorch) +  EnclosedPorch + ScreenPorch + WoodDeckSF ) 
- # esta variable tiene los pies cuadrados finalizados de la casa (tiene en cuenta las variables de sotano acabado y no tiene en cuenta la variable TotalBsmtSF)
- train_test <- train_test %>% dplyr::mutate( TotalSqrFootage = BsmtFinSF1 + BsmtFinSF2 + !!as.symbol(firsrtFlrSF) + !!as.symbol(secondFlrSF)  ) 
+train <- train %>% dplyr::mutate( Total_Bathrooms = FullBath + 0.5*HalfBath +  BsmtFullBath + 0.5*BsmtHalfBath )
+ 
+# esta variable tiene los pies cuadrados del porche
+train <- train %>% dplyr::mutate( Total_porch_SF = OpenPorchSF +!!as.symbol(thirdSsnPorch) +  EnclosedPorch + ScreenPorch + WoodDeckSF ) 
+
+# esta variable tiene los pies cuadrados finalizados de la casa (tiene en cuenta las variables de sotano acabado y no tiene en cuenta la variable TotalBsmtSF)
+train <- train %>% dplyr::mutate( TotalSqrFootage = BsmtFinSF1 + BsmtFinSF2 + !!as.symbol(firsrtFlrSF) + !!as.symbol(secondFlrSF)  ) 
  
  
  
@@ -863,42 +908,51 @@ return_levesl_poolQC <- function(elements) {
 }
 
 
-library(forcats)
+#OverallCond
+train <- train %>% dplyr::mutate( ExterQual:=fct_relevel(ExterQual,return_position1_5))
+test <- test %>% dplyr::mutate( ExterQual:=fct_relevel(ExterQual,return_position1_5))
 
-      #OverallCond
-      train <- train %>% dplyr::mutate( ExterQual:=fct_relevel(ExterQual,return_position1_5))
-      test <- test %>% dplyr::mutate( ExterQual:=fct_relevel(ExterQual,return_position1_5))
-      #ExterCond , 
-      train <- train %>% dplyr::mutate( ExterCond := fct_relevel(ExterCond,return_position1_5))
-      test <- test %>% dplyr::mutate( ExterCond := fct_relevel(ExterCond,return_position1_5))
-      #HeatingQC, 
-      train <- train %>% dplyr::mutate( HeatingQC := fct_relevel(HeatingQC,return_position1_5))
-      test <-  test %>% dplyr::mutate( HeatingQC := fct_relevel(HeatingQC,return_position1_5))
-      #KitchenQual,
-      train <- train %>% dplyr::mutate( KitchenQual := fct_relevel(KitchenQual,return_position1_5))
-      test <-  test %>% dplyr::mutate( KitchenQual := fct_relevel(KitchenQual,return_position1_5))
-      #GarageQual,
-      train <- train %>% dplyr::mutate( GarageQual := fct_relevel(GarageQual,return_position1_5))
-      test <-  test %>% dplyr::mutate( GarageQual := fct_relevel(GarageQual,return_position1_5))
-      #GarageCond
-      train <- train %>% dplyr::mutate( GarageCond := fct_relevel(GarageCond,return_position1_5))
-      test <-  test %>% dplyr::mutate( GarageCond := fct_relevel(GarageCond,return_position1_5))
-      #BsmtQual
-      train <- train %>% dplyr::mutate( BsmtQual := fct_relevel(BsmtQual,return_position1_6))
-      test <-  test %>% dplyr::mutate( BsmtQual := fct_relevel(BsmtQual,return_position1_6))
-      #BsmtCond,
-      train <- train %>% dplyr::mutate( BsmtCond := fct_relevel(BsmtCond,return_position1_6))
-      test <- test %>% dplyr::mutate( BsmtCond := fct_relevel(BsmtCond,return_position1_6))
-      #FireplaceQu
-      train <- train %>% dplyr::mutate(FireplaceQu := fct_relevel(FireplaceQu,return_position1_6))
-      test <-  test %>% dplyr::mutate(FireplaceQu := fct_relevel(FireplaceQu,return_position1_6))
-      #BsmtExposure
-      train <- train %>% dplyr::mutate( BsmtExposure := fct_relevel(BsmtExposure,return_position1_5_B))
-      test <-  test %>% dplyr::mutate( BsmtExposure := fct_relevel(BsmtExposure,return_position1_5_B))
-      #BsmtFinType1 
-      train <- train %>% dplyr::mutate( BsmtFinType1 := fct_relevel(BsmtFinType1,return_position1_7))
-      test <-  test %>% dplyr::mutate( BsmtFinType1 := fct_relevel(BsmtFinType1,return_position1_7))
-      #BsmtFinType2
+#ExterCond , 
+train <- train %>% dplyr::mutate( ExterCond := fct_relevel(ExterCond,return_position1_5))
+test <- test %>% dplyr::mutate( ExterCond := fct_relevel(ExterCond,return_position1_5))
+
+#HeatingQC, 
+train <- train %>% dplyr::mutate( HeatingQC := fct_relevel(HeatingQC,return_position1_5))
+test <-  test %>% dplyr::mutate( HeatingQC := fct_relevel(HeatingQC,return_position1_5))
+
+#KitchenQual,
+train <- train %>% dplyr::mutate( KitchenQual := fct_relevel(KitchenQual,return_position1_5))
+test <-  test %>% dplyr::mutate( KitchenQual := fct_relevel(KitchenQual,return_position1_5))
+
+#GarageQual,
+train <- train %>% dplyr::mutate( GarageQual := fct_relevel(GarageQual,return_position1_5))
+test <-  test %>% dplyr::mutate( GarageQual := fct_relevel(GarageQual,return_position1_5))
+
+#GarageCond
+train <- train %>% dplyr::mutate( GarageCond := fct_relevel(GarageCond,return_position1_5))
+test <-  test %>% dplyr::mutate( GarageCond := fct_relevel(GarageCond,return_position1_5))
+  
+#BsmtQual
+train <- train %>% dplyr::mutate( BsmtQual := fct_relevel(BsmtQual,return_position1_6))
+test <-  test %>% dplyr::mutate( BsmtQual := fct_relevel(BsmtQual,return_position1_6))
+
+#BsmtCond,
+train <- train %>% dplyr::mutate( BsmtCond := fct_relevel(BsmtCond,return_position1_6))
+test <- test %>% dplyr::mutate( BsmtCond := fct_relevel(BsmtCond,return_position1_6))
+
+#FireplaceQu
+train <- train %>% dplyr::mutate(FireplaceQu := fct_relevel(FireplaceQu,return_position1_6))
+test <-  test %>% dplyr::mutate(FireplaceQu := fct_relevel(FireplaceQu,return_position1_6))
+
+#BsmtExposure
+train <- train %>% dplyr::mutate( BsmtExposure := fct_relevel(BsmtExposure,return_position1_5_B))
+test <-  test %>% dplyr::mutate( BsmtExposure := fct_relevel(BsmtExposure,return_position1_5_B))
+
+#BsmtFinType1 
+train <- train %>% dplyr::mutate( BsmtFinType1 := fct_relevel(BsmtFinType1,return_position1_7))
+test <-  test %>% dplyr::mutate( BsmtFinType1 := fct_relevel(BsmtFinType1,return_position1_7))
+
+#BsmtFinType2
       train <- train %>% dplyr::mutate( BsmtFinType1 := fct_relevel(BsmtFinType2,return_position1_7))
       test <-  test %>% dplyr::mutate( BsmtFinType1 := fct_relevel(BsmtFinType2,return_position1_7))
      #GarageFinish
