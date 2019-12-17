@@ -22,7 +22,6 @@ library(ggpubr)
 library(corrr)
 library(moments)
 
-
 seed <- 456
 
 ```
@@ -38,6 +37,8 @@ split_dataframe <- function(df, per){
 }
 
 ```
+
+## Objectivos
 
 En este informe se detalla el estudio realizado sobre un dataset que recoge información relevante de las viviendas en Boston. El estudio, intentara mediante un modelo de regresión lineal múltiple, **predecir el valor de la vivienda**.
 
@@ -124,6 +125,7 @@ test <- list_split[[2]]     # 30%
 
 ```
 
+------------------------------------------------------------------
 
 ```{r message=FALSE, warning=FALSE, echo=FALSE}
 
@@ -318,8 +320,7 @@ var_creadas_transformacion = c()
 
 ```
 
-
-  A continuación realizaremos un pequeño informe mostrando algunas características de los datos que contienen el dataset:
+A continuación realizaremos un pequeño informe mostrando algunas características de los datos que contienen el dataset:
 
 ```{r message=FALSE, warning=FALSE}
 
@@ -333,299 +334,12 @@ skim(train)  %>% pander()
 
 ```
 
-Ahora nos centraremos en encontrar cuál es la distribución de missings en el dataset. Para ello, utilizaremos los siguientes gráficos:
+----------------------------------------------------------------
 
-```{r message=FALSE, warning=FALSE}
+## Detección, tratamiento e imputación de datos faltantes 
 
-aggr(train)
-```
+A la hora de tratar con cualquier dataset hay que tener en cuenta que hay datos que pueden faltar. Es importante encontrarlos y tratarlos de manera correcta, pues podrían llevarnos a predecir de manera errónea y el modelo habría que tirarlo a la basura.
 
-Dibujaremos un histograma con la proporción de missings para las variables continuas:
-
-```{r}
-
-
-missing_data_continuas <- train %>%  dplyr::select(var_continuas)  %>% plot_missing(theme_config = list(legend.position = "bottom", axis.text.x =element_text(angle = 90),axis.text.y = element_text(size = rel(1))))
-
-```
-
-  Observamos que solo úna de las variables tiene una cantidad moderada de datos faltantes ("LotFrontage").
-
-  Ahora repetiremos este procedimiento para las variables discretas:
-
-```{r}
-
-missing_data_discretas <- train %>%  dplyr::select(var_discretas)  %>% plot_missing(theme_config = list(legend.position = "bottom", axis.text.x =element_text(angle = 90),axis.text.y = element_text(size = rel(1))))
-
-```
-
-  En este caso la variable "GarageYrBlt" tiene la mayor cantidad de valores faltantes.
-
-  Repetiremos el mismo proceso para las variables discretas ordinales:
-
-```{r}
-
-missing_data_ordinales <- train %>%  dplyr::select(var_ordinales)  %>% plot_missing(theme_config = list(legend.position = "bottom", axis.text.x =element_text(angle = 90),axis.text.y = element_text(size = rel(1))))
-
-```
-
-  Y por último las nominales:
-
-```{r}
-
-missing_data_nominales <- train %>%  dplyr::select(var_nominales)  %>% plot_missing(theme_config = list(legend.position = "bottom", axis.text.x =element_text(angle = 90),axis.text.y = element_text(size = rel(1))))
-
-```
-
-  En ninguno de los casos  se observan grandes proporciones de datos faltantes.
-  
-  Ahora comenzaremos con el análisis univariante de los datos del dataset.  Empezaremos dicho análisis mostrando un conjunto de histogramas para las variables nominales:
-
-
-```{r}
-train %>%  dplyr::select(var_nominales)  %>% plot_bar()
-```
-
-  A la vista de estos diagramas, observamos lo siguiente:
-      * Existe una gran cantidad de variables que tienen una varianza muy reducida, tales como Street, Alley, LandContour, Condition1, Condition2, RoofStyle, RoofMtl, Heating, GarageType, SaleCondition. Estas variables pueden ser problemáticas al realizar el proceso de regresión lineal para el que este tipo de varialbes puede ser problemático, por no contar que para estos modelos este tipo de variables tienen muy poco poder predictivo.
-    
-    El siguiente código detectara las variables que tienen baja varianza e intentara eliminar todas aquellas que no sean significativas en una regresión de ella con la variable salePrice :
-
-```{r}
-
-elementosBajaVarianza <- nearZeroVar(train,freqCut = 95/5,uniqueCut = 10)
-
-# funcion para eliminar elementos con baja correlacion
-lmp <- function (modelobject) {
-    if (class(modelobject) != "lm") stop("No es un objeto de tipo regresion lineal 'lm' ")
-    f <- summary(modelobject)$fstatistic
-    p <- pf(f[1],f[2],f[3],lower.tail=F)
-    attributes(p) <- NULL
-    return(p)
-}
-
-# estas columna dan problemas
-var_columnas_eliminadas = c(var_columnas_eliminadas,'3SsnPorch')
-
-for(i in colnames(train)[elementosBajaVarianza]) {
-  if(i != '3SsnPorch') {
-    modelRegression <- lm(reformulate(termlabels = i, response = 'SalePrice') ,data=train)
-    if(lmp(modelRegression) >.05) {
-      var_eliminar_correlacion = c(var_eliminar_correlacion,i)
-    }
-  }
-}
-
-(var_eliminar_correlacion)
-
-```
-
-    Otra cosa que se observa en los anteriores diagramas es que todas las distribuciones continen un alto grado de asimetría (Skewness), cosa que habrá que tener en cuenta por si hay que realizar algún tipo de transformación sobre ellas en futuros apartados de la práctica:
-    
-      Ahora realizaremos el mismo análisis con las variables ordinales:
-
-```{r}
-train %>%  dplyr::select(var_ordinales)  %>% plot_bar()
-```
-
-   Se observan práctimante las mismas anomalías en en el caso anterior.
-
-   Proseguiremos con las variables contínuas:
-  
-```{r}
-train %>%  dplyr::select(var_continuas) %>% plot_histogram()
-```
-
-    Los comentarios que se pueden hacer en este caso son los siguientes:
-      * Muy pocas variables parecen seguir una distribución normal y casi todas tienen un fuerte sesgo hacia la izquierda (y unas pocas a la derecha), sugeriendo para muchas de ellas una transformación de tipo logarítmico. Además, algunas de ellas parecen presentar numerosos "outliers" debido a que el rango de variación de las mismas es muy elevado en una gran parte de los valores finales sin que aparezcan casi valores en los mismos. 
-      * La variable "Id" es una especie de clave primária organizadora de las filas y hay que eliminarla en los procesos de regresión.
-
-   Ahora realizaremos los mismos gráficos para las variables discretas:
-
-```{r}
-train %>%  dplyr::select(var_discretas) %>% plot_histogram()
-```
- 
-     Comentarios parecidos a el análisis de distribución de las variables contínuas se pueden hacer para estas variables.
-
-    Ahora nos ocuparemos del análisis de la variable que representa la variable dependiente en nuestro modelo, el precio de las casas. En primer lugar dibujaremos su histograma:
-
-
-```{r}
-
-ggplot(train, aes(x=SalePrice)) + 
-    geom_histogram(aes(y=..density..),      
-                   binwidth=7000,
-                   colour="black", fill="white") +
-    geom_density(alpha=.2, fill="#FF6666")  
-
-```
-
-  Vemos que esta variable tiene un importe sesgo a la izquierda y parece que un cambio de variable de tipo logarítmico podría convertirla en una variable con distribución normal, cosa importante para el modelo lineal de regresión múltiple.  Confirmemos esta hipótesis realizando el cambio de variable en la misma y dibujando su función de distribución normal aproximada:
-
-```{r}
-
-  
-  fitDistribution <- fitdistr(log10(train$SalePrice), densfun = "normal")
-  ggplot(data = train) +
-  geom_histogram(mapping = aes(x = log10(SalePrice), y = ..density..), col="white") +
-  stat_function(fun = dnorm, 
-      args = list(mean = fitDistribution$estimate[1], sd = fitDistribution$estimate[2], log = F), 
-      color="red", lwd=1)
-
-```
-
-  Vemos que, efectivamente, lo que hemos comentado en el anterior apartado se cumple. 
-  Detectamos también que el rango dinámico de la variable es muy grande en su parte    derecha sin que apenas haya valores en dicho intervalo, lo que invita a pensar en la presencia de "outliers". Dibujaremos sendos diagramas de cajas con la variable original y la variable transformada:
-
-```{r}
-
-
-
-graf3 <- train %>% dplyr::select(SalePrice) %>%
-  na.omit() %>%
-  ggplot(aes(x=0,y=SalePrice)) +
-    geom_boxplot(outlier.colour="black", outlier.shape=16,
-             outlier.size=2, notch=FALSE)
-
-graf4 <- train %>% dplyr::mutate(log10_saleprice = log10(SalePrice)) %>%
-  dplyr::select(log10_saleprice) %>%
-  na.omit() %>%
-  ggplot(aes(x=0,y=log10_saleprice)) +
-    geom_boxplot(outlier.colour="black", outlier.shape=16,
-             outlier.size=2, notch=FALSE)
-
-ggarrange(graf3,graf4)
-
-```
-
-   Vemos claramente la existencia de Outliers en esta variable que la transformación logarítmica no es capaz de resolver, tanto en los valores superiores como en los inferiores. En una parte futura de este apartado, detectaremos y almacenaremos en sendas variables estos Outliers para todas las variables independientes y tomar una decisión de cómo transformales en los apartados de tratamiento de variables cualitativas y cuantitativas.
-   
-   Ahora realizaremos un conjunto de gráficos cuantil/cuantil sobre las variables continuas y discretas para corroborar que hay pocas variables con una distribución normal:
-
-```{r}
-train %>% plot_qq(sampled_rows = 1000L)
-```
-
-  Las que más se aproximan a esta distribución son: LotArea, LotFrontage, GrLivArea, TotalBsmtSF y X1stFlrSF. Este diagrama pone en evidencia también la gran cantidad de Outliers que tienen algunas variables.
-  
-  Almacenaremos el grado de asimetría de dichas variables para en un futuro poder tener un criterio más claro de qué variables son candidatas a un tipo de transformación logarítmica:
-
-```{r}
-listasVariablesSkewness <-  na.omit(train %>% dplyr::select(var_continuas_discretas)) %>% skewness()
-listasVariablesSkewness
-variablesSkewnessAlto <- c('LotArea','LowQualFinSF','3SsnPorch','PoolArea','MiscVal')  
-```
-
-   Ahora procedermos a realizar el análisis vibariante de nuestros datos. Empezaremos con analizar los coeficientes de correlación entre las distintas variables. El siguiente diagrama intenta dibujar un mapa de calor de dichas correlaciones para las variables contínuas, pero debido a la gran cantidad de varibles en dicho diagrama no se puede visualizar nada con claridad:
-
-
-```{r}
-
-splitDataset <- split_columns(train, binary_as_factor = FALSE)
-plot_correlation(na.omit(splitDataset$continuous), type = "c" ,maxcat = 5L,theme_config = list(legend.position = "bottom", axis.text.x =element_text(angle = 90),axis.text.y = element_text(size = rel(0.4))  ))
-```
-
-  Crearemos una matriz de correlaciones con las variables continuas para intentar evidencia de mejor forma 
-
-```{r}
-
-
-corrmatrix <-corrr::correlate(na.omit(train %>% dplyr::select(var_continuas)))
-rplot(corrmatrix, legend = TRUE, shape = 16)
-network_plot(corrmatrix)
-
-
-```
-
-```{r}
-corrmatrix2 <-corrr::correlate(na.omit(train %>% dplyr::select(var_discretas)))
-rplot(corrmatrix2, legend = TRUE, shape = 16)
-network_plot(corrmatrix2)
-
-corrmatrix3 <-corrr::correlate(na.omit(train %>% dplyr::select(var_continuas_discretas)))
-rplot(corrmatrix3, legend = TRUE, shape = 16)
-network_plot(corrmatrix3)
-```
-
-
-```{r}
-
-correlacionesProblematicas <- findCorrelation(cor(na.omit(train %>% dplyr::select(var_continuas_discretas))),cutoff = 0.8, verbose = FALSE, names = TRUE)
-correlacionesProblematicas
-```
-
-
-
-
-
-```{r}
-
- na.omit(train %>% dplyr::select(var_continuas)) %>% plot_scatterplot( by = "SalePrice", sampled_rows = 1000L) 
-
-#geom_smooth(method=lm, se=FALSE, fullrange=TRUE)
-
-```
-
-```{r}
-
-# na.omit(train_test %>% dplyr::select(var_discretas)) %>% plot_scatterplot( by = #"SalePrice", sampled_rows = 1000L) 
-
-#geom_smooth(method=lm, se=FALSE, fullrange=TRUE)
-
-```
-
-
- En cuanto a la detección de Outliers, como se ha indicado en 
-
-
-```{r}
-library(EnvStats)
-listaOutliers <- list()
-dataset_var_continuas <- train %>% dplyr::select(var_continuas)
-iterator = 1 
-for(i in colnames(dataset_var_continuas)) {
-  outlier_values <- boxplot.stats(dataset_var_continuas[[i]])$out
-  boxplot(dataset_var_continuas[[i]], main=i, boxwex=0.1)
-  outliersRosen <- rosnerTest(dataset_var_continuas[[i]], k = length(outlier_values)-2, warn = F)
-  listaOutliers[[iterator]] <- outliersRosen
-   iterator<- iterator +1
-}
-
-for(i in listaOutliers) {
-  print(c(i$data.name,i$n.outliers))
-}
-
-```
-
-4. Detección, tratamiento e imputación de datos faltantes (1 punto)
-
-
-A la hora de tratar con cualquier dataset hay que tener en cuenta que hay datos que pueden faltar. Es importante encontrarlos y tratarlos de manera correcta, pues podrían llevarnos a predecir de manera errónea y el modelo habría que tirarlo a la basura. El proceso de detección, tratamiento e imputación de datos faltantes se va a realizar de la siguiente manera:
-
-    a. Análisis exploratorio inicial de los datos.
-    
-En el análisis exploratorio inicial de los datos, además de entender qué es lo que tenemos delante, hemos buscado datos que no concordaran con lo esperado: valores negativos en variables positivas, fechas imposibles o símbolos como "?", valores como "Unkown", etc. 
-
-Esto nos llevó a darnos cuenta de que en algunas variable se acumulaban valores "NA" de manera extraña e investigando descubrimos que era un valor metido a propósito y que indicaban, por ejemplo,
-    Alley: NA 	No alley access
-    BsmtQual: NA	No Basement
-    BsmtCond: NA	No Basement
-    BsmtExposure: NA	No Basement
-    BsmtFinType1: NA	No Basement
-    BsmtFinType2:  NA	No Basement
-    GarageType: NA	No Garage
-    GarageFinish: NA	No Garage
-    GarageQual: : NA	No Garage
-    GarageCond: : NA	No Garage
-    PoolQC:  NA	No Pool
-    Fence:  NA	No Fence
-    MiscFeature:   NA	None
-    
-Valores que, al no disponer la casa de jardín, piscina o garaje, por ejemplo, no se podía poner ningún valor. Así que lo hemos considerado como ausencia de jardín, piscina o garaje y no como NA's.
-    
-    b. Posibles causas de aparición de datos faltantes.
-    
 Tenemos que tener en cuenta si nuestros datos son de naturaleza 
     
 - MCAR (Missing completely at Random): la probabilidad de que un dato falte es idéntica para todos los casos.
@@ -634,24 +348,74 @@ Tenemos que tener en cuenta si nuestros datos son de naturaleza
     
 Analizando nuestros datos vemos que nuestros datos faltantes pertenecen al grupo de MAR, ya que podemos tener capacidad o no para obtener cierta información de los domicilios de Boston, pero será totalmente aleatoria. Ésta es una buena noticia, ya que podemos utilizar técnicas de imputación para suplir los datos faltantes.
     
-    c. Análisis exploratorio de datos faltantes.
+//*Para hacer un análisis de los datos que nos faltan vamos a utilizar la biblioteca VIM. Ésta biblioteca nos será muy útil ya que nos ayuda a analizar las posibles relaciones y estructuras de los valores faltantes e imputados.//* 
     
-Para hacer un análisis de los datos que nos faltan vamos a utilizar la biblioteca VIM. Ésta biblioteca nos será muy útil ya que nos ayuda a analizar las posibles relaciones y estructuras de los valores faltantes e imputados. 
+```{r plot_missing_all, message= FALSE, warning=FALSE, fig.width=40, fig.height=30}
     
-```{r warning=FALSE,fig.width=40, fig.height=30}
-    library(VIM)
-    aggr_plot <- aggr(train,col=c('navyblue','red'), numbers=TRUE, sortVars=TRUE, cex.axis=.7, gap=3, ylab=c("Histogram of missing data","Pattern"))
+##aggr_plot <- aggr(train, col=c('navyblue','red'), numbers=TRUE, sortVars=TRUE, cex.axis=.7, gap=3, ##ylab=c("Histogram of missing data","Pattern"))
+
 ```
-    
+
+El proceso de detección, tratamiento e imputación de datos faltantes se va a realizar de la siguiente manera:
+
+Analizaremos los grupos antes creados por separado para ver mejor los resultados.
+
+Variables continuas:
+
+```{r missing_continuas_show, message=FALSE, warning=FALSE}
+
+missing_data_continuas <- train %>%  dplyr::select(var_continuas)  %>% plot_missing(theme_config = list(legend.position = "bottom", axis.text.x =element_text(angle = 90),axis.text.y = element_text(size = rel(1))))
+
+```
+
+* Datos faltantes en las variables: **LotFrontage**, **MasVnrArea**, **BsmtFinSF1**, **BsmtFinSF2**, **BsmtUnfSF**, **TotalBsmtSF**, **GarageArea**.
+
+Variables discretas:
+
+```{r missing_discretas_show, message=FALSE, warning=FALSE}
+
+missing_data_discretas <- train %>%  dplyr::select(var_discretas)  %>% plot_missing(theme_config = list(legend.position = "bottom", axis.text.x =element_text(angle = 90),axis.text.y = element_text(size = rel(1))))
+
+```
+
+* Datos faltantes en las variables: **GarageYrBlt**, **BsmtFullBath**, **BsmtHalfBath**, **GarageCars**.
+
+Variables discretas ordinales:
+
+```{r missing_ordinales_show, message=FALSE, warning=FALSE}
+
+missing_data_ordinales <- train %>%  dplyr::select(var_ordinales)  %>% plot_missing(theme_config = list(legend.position = "bottom", axis.text.x =element_text(angle = 90),axis.text.y = element_text(size = rel(1))))
+
+```
+
+* Datos faltantes en las variables: **Electrical**, **KitchenQual**.
+
+Variables nominales:
+
+```{r missing_nominales_show, message=FALSE, warning=FALSE}
+
+missing_data_nominales <- train %>%  dplyr::select(var_nominales)  %>% plot_missing(theme_config = list(legend.position = "bottom", axis.text.x =element_text(angle = 90),axis.text.y = element_text(size = rel(1))))
+
+```
+
+* Datos faltantes en las variables: **SalesType**, **Exterior2nd**, **Exterior1st**, **MsZoning**, **MasVnrType**.
+
 Como hay muchas variables que no tienen valores faltantes, vamos a crear un dataset únicamente con las columnas que tienen missings para poder analizar mejor los datos. Para ello:
     
-```{r warning=FALSE}
-    na_counts <- sapply(train, function(x) sum(is.na(x)))
-    na_counts_sort <- sort(na_counts, decreasing = TRUE)
-    na_counts_sort <- na_counts_sort[1:20]
-    (na_counts_sort)
-    train_test_na <- train %>% dplyr::select(LotFrontage, GarageYrBlt, MasVnrType, MasVnrArea, MSZoning, Functional, Exterior1st, Exterior2nd, Electrical, BsmtFinSF1, BsmtFinSF2, BsmtUnfSF, KitchenQual, TotalBsmtSF, BsmtFullBath, BsmtHalfBath, GarageCars, GarageArea, SaleType)
-    aggr_plot <- aggr(train_test_na,col=c('navyblue','red'), numbers=TRUE, sortVars=TRUE, cex.axis=.7, gap=3, ylab=c("Histogram of missing data","Pattern"))
+```{r get_df_missing, messge=FALSE, warning=FALSE}
+
+na_counts <- sapply(train, function(x) sum(is.na(x)))
+
+na_counts_sort <- sort(na_counts, decreasing = TRUE)
+
+na_counts_sort <- na_counts_sort[1:20]
+
+(na_counts_sort)
+
+train_na <- train %>% dplyr::select(LotFrontage, MasVnrArea, BsmtFinSF1, BsmtFinSF2, BsmtUnfSF, TotalBsmtSF, GarageArea, GarageYrBlt, BsmtFullBath, BsmtHalfBath, GarageCars, KitchenQual, Electrical, MasVnrType,  MSZoning, Exterior1st, Exterior2nd, SaleType)
+
+aggr_plot <- aggr(train_na,col=c('navyblue','red'), numbers=TRUE, sortVars=TRUE, cex.axis=.7, gap=3, ylab=c("Histogram of missing data","Pattern"))
+
 ```
     
 Ahora podemos prestar verdadera atención a las columnas con datos faltantes. 
@@ -659,15 +423,19 @@ Ahora podemos prestar verdadera atención a las columnas con datos faltantes.
 Si nos fijamos en la columna que más datos faltantes tiene, podemos ver en la descripción del dataset que son la cantidad de pies lineales que hay de acera hasta la puerta de la casa. Además, leyendo la documentación del dataset vemos que los NA's no significa que no tengan conexión con la acera (un edificio de varios pisos por ejemplo), sino que son datos faltantes. Hemos considerado que una columna con más de un 15% de datos faltantes nos va a desbalancear el dataset drásticamente, por lo que vamos a prescindir de este valor para nuestro estudio y para la imputación de missings, por lo que la borramos del dataset.
     
 ```{r message=FALSE, warning=FALSE, echo=FALSE}
-train<- dplyr::select(train, -LotFrontage)
-test<- dplyr::select(test, -LotFrontage)
+
+train <- dplyr::select(train, -LotFrontage)
+train_na<- dplyr::select(train_na, -LotFrontage)
+
+#test_AA <- dplyr::select(test, -LotFrontage)
+
 #train_test<- dplyr::select(train_test, -LotFrontage)
-train_test_na<- dplyr::select(train_test_na, -LotFrontage)
 #full_dataset<- dplyr::select(full_dataset, -LotFrontage)
 ```
 
 ```{r warning=FALSE}
-    aggr_plot <- aggr(train_test_na,col=c('navyblue','red'), numbers=TRUE, sortVars=TRUE, cex.axis=.7, gap=3, ylab=c("Histogram of missing data","Pattern"))
+
+aggr_plot <- aggr(train_na,col=c('navyblue','red'), numbers=TRUE, sortVars=TRUE, cex.axis=.7, gap=3, ylab=c("Histogram of missing data","Pattern"))
     ```
     
 Vemos en el último gráfico que, omitiendo la columna con datos faltantes mayor que el 5%, la cantidad de datos faltantes es menor que el 3%. Además vemos en la gráfica de la derecha que lo más habitual es que no falten todos los datos a la vez y a continuación que falten datos de la primera columna "GarageYtBtt". 
@@ -679,21 +447,25 @@ El siguiente paso es calcular la proporción de datos faltantes por columna. Par
 
 
 ```{r}
-colMeans(is.na(train_test_na))
+
+colMeans(is.na(train_na))
+
 ```
 
 Para el caso de las variables cuya proporción de missings es menor que el 3% (<=16 datos por columna) vamos a utilizar el método de imputar un valor de centralidad, en este caso la media. Antes de proceder a imputar, vemos que 
 
-- Categóricas: MasVnrType, MSZoning, Functional, Electrical, KitchenQual, SaleType, Exterior1st, Exterior2nd, BsmtFullBath, BsmtHalfBath, Utilities.
+* Categóricas: MasVnrType, MSZoning, Functional, Electrical, KitchenQual, SaleType, Exterior1st, Exterior2nd, BsmtFullBath, BsmtHalfBath, Utilities.
 
-- Cuantitativas: GarageYrBlt, MasVnrArea, GarageCars, GarageArea, BsmtFinSF1, BsmtFinSF2, BsmtUnfSF, TotalBsmtSF.
+* Cuantitativas: GarageYrBlt, MasVnrArea, GarageCars, GarageArea, BsmtFinSF1, BsmtFinSF2, BsmtUnfSF, TotalBsmtSF.
 
 Para imputar de manera eficaz y sin tener que analizar por separado las variables categóricas de las cuantitativas vamos a utilizar la biblioteca HMISC. Esta biblioteca tiene dos funciones altamente potentes: impute() y aregImpute(). Se diferencian entre sí en que en la segunda puedes utilizar regresiones, bootstrapping y otros métodos para imputar valores.
 
 ```{r}
+
 summary_antes_imputar <- summary(train)
 #para las variables cuantitativas con una proporción del faltantes menor que el 3%,
 #imputaremos el valor de la media
+
 cuantitativas <- c('MasVnrArea','GarageCars','GarageArea', 'BsmtFinSF1', 'BsmtFinSF2', 'BsmtUnfSF', 'TotalBsmtSF','BsmtFullBath', 'BsmtHalfBath')
 
 for (i in cuantitativas){
@@ -709,7 +481,8 @@ train
 
 categoricas <- c('MasVnrType', 'MSZoning', 'Functional', 'Electrical',
 'KitchenQual', 'SaleType', 'Exterior1st', 'Exterior2nd',  'Utilities')
-for (i in cuantitativas){
+for (i in categoricas){
+  
   y = as.data.frame(table(unlist(train[[i]])))
   sorted_list <-y[with(y, order(-Freq)),]
   frecuent_value <- sorted_list$Var1[1]
@@ -784,8 +557,242 @@ summary(vecindario_agrupado2)
 
 ```
 
+Y ya tendríamos todas las columnas con missing imputadas.
 
-Y ya tendríamos todas las columnas con missing imputadas. Hay que destacar que hemos imputado los valores faltantes en todo el dataset (menos validación, como es obvio), más adelante separaremos en train y test.
+## Analisis y procesado de variables
+
+Ahora comenzaremos con el análisis univariante de los datos del dataset. Empezaremos dicho análisis mostrando un conjunto de histogramas para las variables nominales:
+
+
+```{r}
+train %>%  dplyr::select(var_nominales)  %>% plot_bar()
+```
+
+A la vista de estos diagramas, observamos lo siguiente:
+      * Existe una gran cantidad de variables que tienen una varianza muy reducida, tales como Street, Alley, LandContour, Condition1, Condition2, RoofStyle, RoofMtl, Heating, GarageType, SaleCondition. Estas variables pueden ser problemáticas al realizar el proceso de regresión lineal para el que este tipo de varialbes puede ser problemático, por no contar que para estos modelos este tipo de variables tienen muy poco poder predictivo.
+    
+    El siguiente código detectara las variables que tienen baja varianza e intentara eliminar todas aquellas que no sean significativas en una regresión de ella con la variable salePrice :
+
+```{r}
+
+elementosBajaVarianza <- nearZeroVar(train,freqCut = 95/5,uniqueCut = 10)
+
+# funcion para eliminar elementos con baja correlacion
+lmp <- function (modelobject) {
+    if (class(modelobject) != "lm") stop("No es un objeto de tipo regresion lineal 'lm' ")
+    f <- summary(modelobject)$fstatistic
+    p <- pf(f[1],f[2],f[3],lower.tail=F)
+    attributes(p) <- NULL
+    return(p)
+}
+
+# estas columna dan problemas
+var_columnas_eliminadas = c(var_columnas_eliminadas,'3SsnPorch')
+
+for(i in colnames(train)[elementosBajaVarianza]) {
+  if(i != '3SsnPorch') {
+    modelRegression <- lm(reformulate(termlabels = i, response = 'SalePrice') ,data=train)
+    if(lmp(modelRegression) >.05) {
+      var_eliminar_correlacion = c(var_eliminar_correlacion,i)
+    }
+  }
+}
+
+(var_eliminar_correlacion)
+
+```
+
+Otra cosa que se observa en los anteriores diagramas es que todas las distribuciones continen un alto grado de asimetría (Skewness), cosa que habrá que tener en cuenta por si hay que realizar algún tipo de transformación sobre ellas en futuros apartados de la práctica:
+    
+Ahora realizaremos el mismo análisis con las variables ordinales:
+
+```{r}
+
+train %>%  dplyr::select(var_ordinales)  %>% plot_bar()
+
+```
+
+Se observan práctimante las mismas anomalías en en el caso anterior.
+
+Proseguiremos con las variables contínuas:
+  
+```{r}
+var_continuas <- c('LotArea','MasVnrArea','BsmtFinSF1','BsmtFinSF2','BsmtUnfSF','TotalBsmtSF','1stFlrSF','2ndFlrSF','LowQualFinSF','GrLivArea','GarageArea','WoodDeckSF','OpenPorchSF','EnclosedPorch', '3SsnPorch','ScreenPorch','PoolArea','MiscVal','SalePrice')
+
+train %>%  dplyr::select(var_continuas) %>% plot_histogram()
+
+```
+
+Los comentarios que se pueden hacer en este caso son los siguientes:
+
+* Muy pocas variables parecen seguir una distribución normal y casi todas tienen un fuerte sesgo hacia la izquierda (y unas pocas a la derecha), sugeriendo para muchas de ellas una transformación de tipo logarítmico. Además, algunas de ellas parecen presentar numerosos "outliers" debido a que el rango de variación de las mismas es muy elevado en una gran parte de los valores finales sin que aparezcan casi valores en los mismos. 
+
+* La variable "Id" es una especie de clave primária organizadora de las filas y hay que eliminarla en los procesos de regresión.
+
+Ahora realizaremos los mismos gráficos para las variables discretas:
+
+```{r}
+
+train %>%  dplyr::select(var_discretas) %>% plot_histogram()
+
+```
+ 
+Comentarios parecidos a el análisis de distribución de las variables contínuas se pueden hacer para estas variables.
+
+Ahora nos ocuparemos del análisis de la variable que representa la variable dependiente en nuestro modelo, el precio de las casas. En primer lugar dibujaremos su histograma:
+
+```{r}
+
+ggplot(train, aes(x=SalePrice)) + 
+    geom_histogram(aes(y=..density..),      
+                   binwidth=7000,
+                   colour="black", fill="white") +
+    geom_density(alpha=.2, fill="#FF6666")  
+
+```
+
+Vemos que esta variable tiene un importe sesgo a la izquierda y parece que un cambio de variable de tipo logarítmico podría convertirla en una variable con distribución normal, cosa importante para el modelo lineal de regresión múltiple. Confirmemos esta hipótesis realizando el cambio de variable en la misma y dibujando su función de distribución normal aproximada:
+
+```{r}
+
+fitDistribution <- fitdistr(log10(train$SalePrice), densfun = "normal")
+  ggplot(data = train) +
+  geom_histogram(mapping = aes(x = log10(SalePrice), y = ..density..), col="white") +
+  stat_function(fun = dnorm, args = list(mean = fitDistribution$estimate[1], sd = fitDistribution$estimate[2], log = F), 
+  color="red", lwd=1)
+
+```
+
+Vemos que, efectivamente, lo que hemos comentado en el anterior apartado se cumple. 
+Detectamos también que el rango dinámico de la variable es muy grande en su parte    derecha sin que apenas haya valores en dicho intervalo, lo que invita a pensar en la presencia de "outliers". Dibujaremos sendos diagramas de cajas con la variable original y la variable transformada:
+
+```{r}
+
+graf3 <- train %>% dplyr::select(SalePrice) %>%
+  na.omit() %>%
+  ggplot(aes(x=0,y=SalePrice)) +
+    geom_boxplot(outlier.colour="black", outlier.shape=16,
+             outlier.size=2, notch=FALSE)
+
+graf4 <- train %>% dplyr::mutate(log10_saleprice = log10(SalePrice)) %>%
+  dplyr::select(log10_saleprice) %>%
+  na.omit() %>%
+  ggplot(aes(x=0,y=log10_saleprice)) +
+    geom_boxplot(outlier.colour="black", outlier.shape=16,
+             outlier.size=2, notch=FALSE)
+
+ggarrange(graf3,graf4)
+
+```
+
+Vemos claramente la existencia de Outliers en esta variable que la transformación logarítmica no es capaz de resolver, tanto en los valores superiores como en los inferiores. En una parte futura de este apartado, detectaremos y almacenaremos en sendas variables estos Outliers para todas las variables independientes y tomar una decisión de cómo transformales en los apartados de tratamiento de variables cualitativas y cuantitativas.
+   
+Ahora realizaremos un conjunto de gráficos cuantil/cuantil sobre las variables continuas y discretas para corroborar que hay pocas variables con una distribución normal:
+
+```{r}
+
+train %>% plot_qq(sampled_rows = 1000L)
+
+```
+
+Las que más se aproximan a esta distribución son: LotArea, LotFrontage, GrLivArea, TotalBsmtSF y X1stFlrSF. Este diagrama pone en evidencia también la gran cantidad de Outliers que tienen algunas variables.
+  
+Almacenaremos el grado de asimetría de dichas variables para en un futuro poder tener un criterio más claro de qué variables son candidatas a un tipo de transformación logarítmica:
+
+```{r}
+
+var_continuas_discretas = c(var_continuas,var_discretas)
+
+listasVariablesSkewness <-  na.omit(train %>% dplyr::select(var_continuas_discretas)) %>% skewness()
+
+listasVariablesSkewness
+
+variablesSkewnessAlto <- c('LotArea','LowQualFinSF','3SsnPorch','PoolArea','MiscVal')  
+
+```
+
+Ahora procedermos a realizar el análisis vibariante de nuestros datos. Empezaremos con analizar los coeficientes de correlación entre las distintas variables. El siguiente diagrama intenta dibujar un mapa de calor de dichas correlaciones para las variables contínuas, pero debido a la gran cantidad de varibles en dicho diagrama no se puede visualizar nada con claridad:
+
+
+```{r}
+
+splitDataset <- split_columns(train, binary_as_factor = FALSE)
+plot_correlation(na.omit(splitDataset$continuous), type = "c" ,maxcat = 5L,theme_config = list(legend.position = "bottom", axis.text.x =element_text(angle = 90),axis.text.y = element_text(size = rel(0.4))  ))
+
+```
+
+Crearemos una matriz de correlaciones con las variables continuas para intentar evidencia de mejor forma 
+
+```{r}
+
+
+corrmatrix <-corrr::correlate(na.omit(train %>% dplyr::select(var_continuas)))
+rplot(corrmatrix, legend = TRUE, shape = 16)
+network_plot(corrmatrix)
+
+
+```
+
+```{r}
+
+corrmatrix2 <-corrr::correlate(na.omit(train %>% dplyr::select(var_discretas)))
+rplot(corrmatrix2, legend = TRUE, shape = 16)
+network_plot(corrmatrix2)
+
+corrmatrix3 <-corrr::correlate(na.omit(train %>% dplyr::select(var_continuas_discretas)))
+rplot(corrmatrix3, legend = TRUE, shape = 16)
+network_plot(corrmatrix3)
+
+```
+
+
+```{r}
+
+correlacionesProblematicas <- findCorrelation(cor(na.omit(train %>% dplyr::select(var_continuas_discretas))),cutoff = 0.8, verbose = FALSE, names = TRUE)
+correlacionesProblematicas
+
+```
+
+
+```{r}
+
+na.omit(train %>% dplyr::select(var_continuas)) %>% plot_scatterplot( by = "SalePrice", sampled_rows = 1000L) 
+
+#geom_smooth(method=lm, se=FALSE, fullrange=TRUE)
+
+```
+
+```{r}
+
+# na.omit(train_test %>% dplyr::select(var_discretas)) %>% plot_scatterplot( by = #"SalePrice", sampled_rows = 1000L) 
+
+#geom_smooth(method=lm, se=FALSE, fullrange=TRUE)
+
+```
+
+
+ En cuanto a la detección de Outliers, como se ha indicado en 
+
+
+```{r}
+library(EnvStats)
+listaOutliers <- list()
+dataset_var_continuas <- train %>% dplyr::select(var_continuas)
+iterator = 1 
+for(i in colnames(dataset_var_continuas)) {
+  outlier_values <- boxplot.stats(dataset_var_continuas[[i]])$out
+  boxplot(dataset_var_continuas[[i]], main=i, boxwex=0.1)
+  outliersRosen <- rosnerTest(dataset_var_continuas[[i]], k = length(outlier_values)-2, warn = F)
+  listaOutliers[[iterator]] <- outliersRosen
+   iterator<- iterator +1
+}
+
+for(i in listaOutliers) {
+  print(c(i$data.name,i$n.outliers))
+}
+
+```
+
 
 
 5. Transformaciones de variables cuantitativas (1 punto)
