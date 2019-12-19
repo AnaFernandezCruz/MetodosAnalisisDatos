@@ -864,6 +864,9 @@ for(i in colnames(dataset_var_continuas)) {
 
 ```
 
+  A continuación, almaceneramos en un conjunto de variables todas las recomendaciones que se han hecho en este punto para proceder en partes posteriores de la práctica a llevar a cabo dichas recomendaciones (eliminar columnas del modelo por posibilidad de autocorrelacines, eliminacion de columnas varias por baja varianza de las mismas, etc).
+
+
 ```{r}
 var_modelo_with_SalePrice = c(var_modelo,'SalePrice')
 var_columnas_eliminadas = c('TotRmsAbvGrd','GarageYrBlt','GarageCars','TotalBsmtSF','1stFlrSF','2ndFlrSF','BsmtFinSF2','1stFlrSF','2ndFlrSF','FullBath','HalfBath','BsmtFullBath','BsmtHalfBath','OpenPorchSF','3SsnPorch','EnclosedPorch','ScreenPorch','WoodDeckSF','GarageFinish','hasBasement','hasFirePlaces','LotFrontage')
@@ -875,6 +878,13 @@ var_eliminar_correlacion = c('TotRmsAbvGrd','GarageYrBlt','GarageCars')
 
 
 5. Transformaciones de variables cuantitativas (1 punto)
+
+  Ahora procederemos a realizar el procesado de las variables cuantitativas, tanto contínuas como discretas. Lo primero que haremos será contruir 3 nuevas variables como sigue:
+  * TotalSF : será la suma de pies cuadrados entre sótano, primera planta y segunda planta.
+  * Total_Bathrooms: llevará cuenta del número total de cuartos de baño existentes en la casa, contabilizando los baños pequeños con un peso inferior.
+  * Total_porch_SF: llevará cuente del número todal de pies cuadrados existentes en los diferentes porches.
+  
+  Evidentemente, estas variables sustituyen en el modemo final a las variables de las que se componen. Para no destruir información, además, en el apartado de procesado de variables cualitativas crearemos nuevas variables facetadas que indiquen si una casa tiene segundo piso y porche, porque no todas las casas tienen estas dos características. Así nos quitamos el problema que vimos en el apartado de análisis exploratorio con numerosos ceros en algunas de estas variables.
 
 ```{r}
 
@@ -901,6 +911,35 @@ var_creadas_transformacion = c( 'TotalSF','Total_Bathrooms','Total_porch_SF','To
  
 ```
 
+  Otro procesamiento que realizaremos sobre estas variables es cuantificar las variables que portan los años de reforma y construcción de la casa en rangos de 30 años, para simplificar el modelo final generado. Esta cuantificación transformará estas variables en variables categóricas. El código que realiza la transformación es el siguiente:
+
+```{r}
+# YearBuilt: discretizamos la variable en tramos
+# YearRemodAdd: discretizamos la variable en tramos
+train$YearBuilt <- cut(train$YearBuilt, 
+                   breaks=c(-Inf, 1930, 1960, 1990,Inf), 
+                   labels=c("1900_1930","1930_1960","1960_1990","1990_"))   
+test$YearBuilt <- cut(test$YearBuilt, 
+                   breaks=c(-Inf, 1930, 1960, 1990,Inf), 
+                   labels=c("1900_1930","1930_1960","1960_1990","1990_"))   
+validation$YearBuilt <- cut(validation$YearBuilt, 
+                   breaks=c(-Inf, 1930, 1960, 1990,Inf), 
+                   labels=c("1900_1930","1930_1960","1960_1990","1990_"))   
+
+      
+train$YearRemodAdd <- cut(train$YearRemodAdd, 
+                   breaks=c(-Inf, 1930, 1960, 1990,Inf), 
+                   labels=c("1900_1930","1930_1960","1960_1990","1990_"))   
+test$YearRemodAdd <- cut(test$YearRemodAdd, 
+                   breaks=c(-Inf, 1930, 1960, 1990,Inf), 
+                   labels=c("1900_1930","1930_1960","1960_1990","1990_"))   
+validation$YearRemodAdd <- cut(validation$YearRemodAdd, 
+                   breaks=c(-Inf, 1930, 1960, 1990,Inf), 
+                   labels=c("1900_1930","1930_1960","1960_1990","1990_"))   
+
+```
+
+  Continuaremos este apartado realizando la transformación logarítmica tanto de la variable SalePrice como de las variables con alto grado de asimetría. Debido a que algunas de estas variables tienen valores nulos, sumaremos uno a la funció logarítmica para evitar errores en el cálculo del logaritmo.  El siguiente código realiza estas transformaciones:
 
 ```{r}
 
@@ -916,7 +955,7 @@ for(i in 1:ncol(train)){
         if (nombreCol %in% variablesTransformar & nombreCol != 'SalePrice'){
             train[,i] <- log(train[,i] +1)
             test[,i] <- log(test[,i] +1)
-            validation[,i] <- validation(test[,i] +1)
+            validation[,i] <- log(validation[,i] +1)
         } else if(nombreCol == 'SalePrice'){
             train[,i] <- log(train[,i])
             test[,i] <- log(test[,i])
@@ -931,47 +970,19 @@ for(i in 1:ncol(train)){
 
 
 ```
-```{r}
-train_sin_na <- train %>%  na.omit() %>% dplyr::select(-Id)
-preProcValues <- preProcess(train_sin_na  %>% dplyr::select(-OverallQual, -OverallCond),method = c("center", "scale"))
-```
 
 
+ Por último, realizaremos un normalizado de las variables para intentar que tengan media 0 y desviación típica 1, pero esa normalización se realizará en el siguiente punto una vez se hayan tratado las variables cualitativas y se hayan creado las variables de tipo factor que sean necesarias.
 
 6. Procesado de variables cualitativas (1 punto)
 
-```{r}
+  Comenzaremos este apartado creando las siguientes variables como complemento a la información en pies cuadrados de las distintas partes que componen una vivienda:
+  
+  * hasPool : variable categórica que indica si la vivienda tiene piscina o no.
+  * hasBasement : variable categórica que indica si la vivienda tiene sótano o no.
+  * has2ndFloor: variable categórica que indica si la vivienda tiene segunda planta o no.
 
-
-
-train <- train %>% dplyr::mutate( TotalSF = TotalBsmtSF + `1stFlrSF` + `2ndFlrSF`  )
- train <- train %>% dplyr::mutate( Total_Bathrooms = FullBath + 0.5*HalfBath +  BsmtFullBath + 0.5*BsmtHalfBath )
- train <- train %>% dplyr::mutate( Total_porch_SF = OpenPorchSF +`3SsnPorch` +  EnclosedPorch + ScreenPorch + WoodDeckSF )
- #train <- train %>% dplyr::mutate( TotalSqrFootage = BsmtFinSF1 + BsmtFinSF2 + !!as.symbol(firsrtFlrSF) + #!!as.symbol(secondFlrSF)  )
- 
-test <- test %>% dplyr::mutate( TotalSF = TotalBsmtSF + `1stFlrSF` + `2ndFlrSF`  )
- test <- test %>% dplyr::mutate( Total_Bathrooms = FullBath + 0.5*HalfBath +  BsmtFullBath + 0.5*BsmtHalfBath )
- test <- test %>% dplyr::mutate( Total_porch_SF = OpenPorchSF +`3SsnPorch` +  EnclosedPorch + ScreenPorch + WoodDeckSF ) 
-#test <- test %>% dplyr::mutate( TotalSqrFootage = BsmtFinSF1 + BsmtFinSF2 + !!as.symbol(firsrtFlrSF) + #!!as.symbol(secondFlrSF)  )
- 
-# esta variable tiene los pies cuadrados "oficiales" del interior de la casa
-train_test <- train_test %>% dplyr::mutate( TotalSF = TotalBsmtSF + `1stFlrSF` + `2ndFlrSF`  )
-# esta variable tiene los pies cuadrados de los cuartos de baño de la casa
- train_test <- train_test %>% dplyr::mutate( Total_Bathrooms = FullBath + 0.5*HalfBath +  BsmtFullBath + 0.5*BsmtHalfBath )
- # esta variable tiene los pies cuadrados del porche
- train_test <- train_test %>% dplyr::mutate( Total_porch_SF = OpenPorchSF +`3SsnPorch` +  EnclosedPorch + ScreenPorch + WoodDeckSF ) 
- # esta variable tiene los pies cuadrados finalizados de la casa (tiene en cuenta las variables de sotano acabado y no tiene en cuenta la variable TotalBsmtSF)
- #train_test <- train_test %>% dplyr::mutate( TotalSqrFootage = BsmtFinSF1 + BsmtFinSF2 + TotalBsmtSF+ #!!as.symbol(firsrtFlrSF) + !!as.symbol(secondFlrSF)  ) 
- 
- 
- 
- 
-```
-
-
-
-6. Procesado de variables cualitativas (1 punto)
-
+   Habrá que tener cuidado con estas variables al añadirlas al modelo porque podrían estar altamente correladas con las variables que indican el tamaño en superficie de estos 3 elementos.
 
 ```{r}
 
@@ -997,8 +1008,11 @@ test <-  test %>% dplyr::mutate( has2ndFloor := ifelse(`2ndFlrSF`  > 0, "True", 
 train <-  train %>% dplyr::mutate( has2ndFloor := ifelse(`2ndFlrSF`  > 0, "True", "False")) 
 validation <-  validation %>% dplyr::mutate( has2ndFloor := ifelse( `2ndFlrSF`  > 0, "True", "False"))    
 
+```
 
+   A continuación transformaremos en columnas de tipo Factor aquellas que tiene valores alfanuméricos y que no parece que tengan un orden natural:
 
+```{r}
 
 nombresVariablesFactores  <- c('MiscFeature','Alley','Fence','LotConfig','GarageType','MSZoning','Exterior1st','Exterior2nd','Electrical','SaleType','SaleCondition','Foundation','Heating','RoofStyle',
 'RoofMatl','LandContour','BldgType','HouseStyle','Neighborhood','Condition1','Condition2','MoSold','YrSold','Street','LotShape','Utilities','LandSlope','MasVnrType','BsmtFinType2','CentralAir','Functional','PavedDrive','hasPool','hasBasement','hasFirePlaces')
@@ -1012,14 +1026,19 @@ for(i in nombresVariablesFactores){
 
 
 train$MSSubClass <- as.factor(train$MSSubClass)
-train$MSSubClass<-revalue(train$MSSubClass, c('20'='1 story 1946+', '30'='1 story 1945-', '40'='1 story unf attic', '45'='1,5 story unf', '50'='1,5 story fin', '60'='2 story 1946+', '70'='2 story 1945-', '75'='2,5 story all ages', '80'='split/multi level', '85'='split foyer', '90'='duplex all style/age', '120'='1 story PUD 1946+', '150'='1,5 story PUD all', '160'='2 story PUD 1946+', '180'='PUD multilevel', '190'='2 family conversion'))
+train$MSSubClass<-revalue(train$MSSubClass, c('20'='1_story_1946_', '30'='1_story_1945_', '40'='1_story_unf_attic', '45'='1_5_story_unf', '50'='1_5 story_fin', '60'='2_story_1946_', '70'='2_story_1945_', '75'='2_5_story_all_ages', '80'='split_multi_level', '85'='split_foyer', '90'='duplex_all_style_age', '120'='1_story_PUD_1946_', '150'='1_5_story_PUD_all', '160'='2_story_PUD_1946', '180'='PUD_multilevel', '190'='2_family_conversion'))
 
 test$MSSubClass <- as.factor(test$MSSubClass)
-test$MSSubClass<-revalue(test$MSSubClass, c('20'='1 story 1946+', '30'='1 story 1945-', '40'='1 story unf attic', '45'='1,5 story unf', '50'='1,5 story fin', '60'='2 story 1946+', '70'='2 story 1945-', '75'='2,5 story all ages', '80'='split/multi level', '85'='split foyer', '90'='duplex all style/age', '120'='1 story PUD 1946+', '150'='1,5 story PUD all', '160'='2 story PUD 1946+', '180'='PUD multilevel', '190'='2 family conversion'))
+test$MSSubClass<-revalue(test$MSSubClass, c('20'='1_story_1946_', '30'='1_story_1945_', '40'='1_story_unf_attic', '45'='1_5_story_unf', '50'='1_5 story_fin', '60'='2_story_1946_', '70'='2_story_1945_', '75'='2_5_story_all_ages', '80'='split_multi_level', '85'='split_foyer', '90'='duplex_all_style_age', '120'='1_story_PUD_1946_', '150'='1_5_story_PUD_all', '160'='2_story_PUD_1946', '180'='PUD_multilevel', '190'='2_family_conversion'))
 
 validation$MSSubClass <- as.factor(validation$MSSubClass)
-validation$MSSubClass<-revalue(validation$MSSubClass, c('20'='1 story 1946+', '30'='1 story 1945-', '40'='1 story unf attic', '45'='1,5 story unf', '50'='1,5 story fin', '60'='2 story 1946+', '70'='2 story 1945-', '75'='2,5 story all ages', '80'='split/multi level', '85'='split foyer', '90'='duplex all style/age', '120'='1 story PUD 1946+', '150'='1,5 story PUD all', '160'='2 story PUD 1946+', '180'='PUD multilevel', '190'='2 family conversion'))
+validation$MSSubClass<-revalue(validation$MSSubClass, c('20'='1_story_1946_', '30'='1_story_1945_', '40'='1_story_unf_attic', '45'='1_5_story_unf', '50'='1_5 story_fin', '60'='2_story_1946_', '70'='2_story_1945_', '75'='2_5_story_all_ages', '80'='split_multi_level', '85'='split_foyer', '90'='duplex_all_style_age', '120'='1_story_PUD_1946_', '150'='1_5_story_PUD_all', '160'='2_story_PUD_1946', '180'='PUD_multilevel', '190'='2_family_conversion'))
+```
 
+  Y por último, todas las variables que encierran una relación de orden en ellas (por ejemplo, que sirven para cuantificar una característica de peor a mejor), se convierten en variables de tipo factor, pero estableciendo los distintos niveles de 0 a el valor máximo en función del valor que representan. El siguiente código realiza dicha transformación.
+
+
+```{r}
 
 #OverallQual, OverallCond (dejarlas como estan)
 levesl1_10 <- c("Very Poor","Poor","Fair","Below Average","Average","Above Average","Good","Very Good","Excellent","Very Excellent")
@@ -1142,34 +1161,92 @@ library(forcats)
       test <-  test %>% dplyr::mutate( PoolQC := fct_relevel(PoolQC,return_levesl_poolQC))
       validation <-  validation %>% dplyr::mutate( PoolQC := fct_relevel(PoolQC,return_levesl_poolQC))
 
-# YearBuilt: discretizamos la variable en tramos
-# YearRemodAdd: discretizamos la variable en tramos
-train$YearBuilt <- cut(train$YearBuilt, 
-                   breaks=c(-Inf, 1930, 1960, 1990,Inf), 
-                   labels=c("1900_1930","1930_1960","1960_1990","1990_"))   
-test$YearBuilt <- cut(test$YearBuilt, 
-                   breaks=c(-Inf, 1930, 1960, 1990,Inf), 
-                   labels=c("1900_1930","1930_1960","1960_1990","1990_"))   
-validation$YearBuilt <- cut(validation$YearBuilt, 
-                   breaks=c(-Inf, 1930, 1960, 1990,Inf), 
-                   labels=c("1900_1930","1930_1960","1960_1990","1990_"))   
-
-      
-train$YearRemodAdd <- cut(train$YearRemodAdd, 
-                   breaks=c(-Inf, 1930, 1960, 1990,Inf), 
-                   labels=c("1900_1930","1930_1960","1960_1990","1990_"))   
-test$YearRemodAdd <- cut(test$YearRemodAdd, 
-                   breaks=c(-Inf, 1930, 1960, 1990,Inf), 
-                   labels=c("1900_1930","1930_1960","1960_1990","1990_"))   
-validation$YearRemodAdd <- cut(validation$YearRemodAdd, 
-                   breaks=c(-Inf, 1930, 1960, 1990,Inf), 
-                   labels=c("1900_1930","1930_1960","1960_1990","1990_"))   
 
 # para dummify variables si es necesario tenemos esta funcion del paquete dataexplorer
 #train <- dummify(train, maxcat = 50L, select = var_nominales)
    
 ```
 
+ Y por último, trataremos de centrar y normalizar todas las variables numéricas una vez convertidas en factores en los anteriores pasos. Esto se realizará pensando sobre todo en el paso de aplicación del método de selección de variables "lasso", que exige que todas las variables numéricas tengan varianza 1 para evitar sesgos en el modelo resultante. El siguiente código realizará esta función:
+
+```{r}
+train_sin_na <- train %>%  na.omit() %>% dplyr::select(-Id)
+preProcValues <- preProcess(train_sin_na  %>% dplyr::select(-OverallQual, -OverallCond),method = c("center", "scale"))
+
+test_sin_na <- test %>%  na.omit() %>% dplyr::select(-Id)
+preProcValues <- preProcess(train_sin_na  %>% dplyr::select(-OverallQual, -OverallCond),method = c("center", "scale"))
+
+validation_sin_na <- validation %>%  na.omit() %>% dplyr::select(-Id)
+preProcValues <- preProcess(train_sin_na  %>% dplyr::select(-OverallQual, -OverallCond),method = c("center", "scale"))
+
+```
+
 7. Selección de variables (1 punto)
+
+```{r}
+
+var_modelo = c( 'TotalSF','GrLivArea','LotArea','Total_Bathrooms','Total_porch_SF','MSZoning','Alley','LandContour','LotConfig','Condition1','BldgType','HouseStyle','RoofStyle','Exterior1st','Exterior2nd','MasVnrType','Foundation','Heating','SaleType','SaleCondition','YearBuilt','YearRemodAdd','MasVnrArea','MoSold','YrSold','OverallQual','OverallCond','PavedDrive','PoolArea','PoolQC','Fence','BsmtFinSF1','Electrical','Functional','ExterCond','ExterQual','BsmtQual','BsmtExposure','BsmtFinType1','BsmtUnfSF','HeatingQC','CentralAir','KitchenQual','Fireplaces','FireplaceQu','BedroomAbvGr','KitchenAbvGr','LotShape','GarageType','GarageArea','GarageQual','GarageCond','Neighborhood','hasPool','has2ndFloor','Total_porch_SF')
+
+var_modelo_with_SalePrice = c(var_modelo,'SalePrice')
+
+```
+
+
+
+```{r}
+train_sin_na <- train %>%  na.omit() %>% dplyr::select(-Id)
+test_sin_na <- test %>%  na.omit() %>% dplyr::select(-Id)
+
+modelRegressionTotal <- lm(reformulate(termlabels = var_modelo, response = 'SalePrice') ,data=train_sin_na)
+summary( modelRegressionTotal )
+
+
+trainTransformed <- predict(preProcValues, train_sin_na)
+testTransformed <- predict(preProcValues, test_sin_na)
+dummies <- dummyVars(reformulate(termlabels = var_modelo_with_SalePrice ),fullRank = T, data = data.frame(trainTransformed),sep=NULL)
+trainTransformedDummies <- predict(dummies, newdata = trainTransformed)
+testTransformedDummies <- predict(dummies, newdata = testTransformed)
+
+```
+
+```{r}
+set.seed(123)
+# Set up repeated k-fold cross-validation
+train.control <- trainControl(method = "cv", number = 10)
+# Train the model
+step.model <- train(reformulate(termlabels = var_modelo, response = 'SalePrice'), data = data.frame(trainTransformed)  ,method = "leapBackward", tuneGrid = data.frame(nvmax = 90:200),trControl = train.control,sep = NULL)
+#step.model$bestTune
+#step.model$results
+#summary(step.model$finalModel)
+step_coef <- coef(step.model$finalModel, step.model$bestTune$nvmax)
+lm_formula <- as.formula(str_replace(paste("SalePrice ~ ",paste(names(step_coef)[-1] , collapse=" + "), sep = " "),'&','.'))
+modelStepForward <- lm(lm_formula, data = data.frame(trainTransformedDummies))
+summary(modelStepForward)
+```
+
+```{r}
+
+gridLamdas <- expand.grid(alpha = 1, lambda = seq(0.001,0.1,by = 0.0005))
+varControl <-caret::trainControl(method="cv", number=10)
+lasso_mod <- train(reformulate(termlabels = var_modelo, response = 'SalePrice'), data = data.frame(trainTransformed), method='glmnet', trControl= varControl, tuneGrid=gridLamdas) 
+lasso_mod$bestTune
+min(lasso_mod$results$RMSE)
+lassoVarImp <- varImp(lasso_mod,scale=F)
+lassoImportance <- lassoVarImp$importance
+varsSelected <- length(which(lassoImportance$Overall!=0))
+varsNotSelected <- length(which(lassoImportance$Overall==0))
+cat(' El modelo de lasso usa', varsSelected, 'variables en el modelo, y rechazo ', varsNotSelected, 'variables.')
+
+
+lm_formula_2 <- as.formula(str_replace(paste("SalePrice ~ ",paste(predictors(lasso_mod) , collapse=" + "), sep = " "),'&','.'))
+modelLasso <- lm(lm_formula_2, data = data.frame(trainTransformedDummies))
+#summary(modelLasso)
+
+
+```
+
+
 8. Ajuste, interpretación y diagnosis del modelo de regresión lineal múltiple (2 puntos)
+
+
 9. Valoración del profesor (1 punto)
