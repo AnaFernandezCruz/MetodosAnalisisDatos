@@ -1231,14 +1231,16 @@ train_sin_na <- train %>%  na.omit() %>% dplyr::select(-Id)
 preProcValuesTrain <- preProcess(train_sin_na  %>% dplyr::select(-OverallQual, -OverallCond),method = c("center", "scale"))
 
 test_sin_na <- test %>%  na.omit() %>% dplyr::select(-Id)
-preProcValuesTest <- preProcess(train_sin_na  %>% dplyr::select(-OverallQual, -OverallCond),method = c("center", "scale"))
+preProcValuesTest <- preProcess(test_sin_na  %>% dplyr::select(-OverallQual, -OverallCond),method = c("center", "scale"))
 
 validation_sin_na <- validation %>%  na.omit() %>% dplyr::select(-Id)
-preProcValuesValidation <- preProcess(train_sin_na  %>% dplyr::select(-OverallQual, -OverallCond),method = c("center", "scale"))
+preProcValuesValidation <- preProcess(validation_sin_na  %>% dplyr::select(-OverallQual, -OverallCond),method = c("center", "scale"))
 
 ```
 
 7. Selección de variables (1 punto)
+
+  Teniendo en cuanto todo lo dicho en los anteriores apartados, las variables con las que al final nos quedaremos para el cálculo del modelo final serán las siguientes:
 
 ```{r}
 
@@ -1248,50 +1250,80 @@ var_modelo_with_SalePrice = c(var_modelo,'SalePrice')
 
 ```
 
-
+Ahora eliminaremos la columna Id de los datasets para que no intervenga en el modelo y lo recalcularemos con las variables anteriormente comentadas:
 
 ```{r}
 train_sin_na <- train %>%  na.omit() %>% dplyr::select(-Id)
 test_sin_na <- test %>%  na.omit() %>% dplyr::select(-Id)
 validation_sin_na <- validation %>%  na.omit() %>% dplyr::select(-Id)
 
-modelRegressionTotal <- lm(reformulate(termlabels = var_modelo, response = 'SalePrice') ,data=train_sin_na)
-summary( modelRegressionTotal )
-
-
 trainTransformed <- predict(preProcValuesTrain, train_sin_na)
 testTransformed <- predict(preProcValuesTest, test_sin_na)
 validationTransformed <- predict(preProcValuesValidation, validation_sin_na)
 
-dummiesTrain <- dummyVars(reformulate(termlabels = var_modelo_with_SalePrice ),fullRank = T, data = data.frame(trainTransformed),sep=NULL)
-dummiesTest <- dummyVars(reformulate(termlabels = var_modelo_with_SalePrice ),fullRank = T, data = data.frame(testTransformed),sep=NULL)
+modelRegressionTotal <- lm(reformulate(termlabels = var_modelo, response = 'SalePrice') ,data=trainTransformed)
+
+cat('El modelo total usa', length(modelRegressionTotal$coefficients), 'variables ')
+
+
+
+#summary( modelRegressionTotal )
+#predict(modelRegressionTotal,testTransformed)
+
+```
+
+ A continuación, intentaremos reducir la elevada dimensionalidad del modelo utilizando la libreria Caret y haciendo una regresión de tipo "Step Backward selection", es decir, utilizando el algoritmo que partiendo de todas las variables del modelo vaya creando nuevos modelos quitando cada vez una de las variables que contengan el estimador menos influyente en el modelo hasta converger. Para ello primero relalizamos la codificacion de las varibales categóricas en variables de tipo "dummy":
+
+```{r}
+dummiesTrain <- dummyVars(reformulate(termlabels = var_modelo_with_SalePrice ),fullRank = T, data = data.frame(trainTransformed),sep='.')
+dummiesTest <- dummyVars(reformulate(termlabels = var_modelo_with_SalePrice ),fullRank = T, data = data.frame(testTransformed),sep='.')
 trainTransformedDummies <- predict(dummiesTrain, newdata = trainTransformed)
 testTransformedDummies <- predict(dummiesTest, newdata = testTransformed)
 
 ```
 
+  El siguiente código teóricamente realiza esa funcionalidad, pero hemos tenido problemas al ejecutarlo debido a que codifica los valores de variables categóricas con espacios de distinta forma que el algoritmo "predict" utilizado en el anterior apartado. Dejamos el código en la práctica para que quede constancia de que por lo menos lo hemos intentado, pero ha dado un montón de problemas y no termina de funcinar correctamente por razones desconocidas:
+
 ```{r}
-set.seed(123)
+#set.seed(123)
 # Set up repeated k-fold cross-validation
-train.control <- trainControl(method = "cv", number = 10)
+#train.control <- trainControl(method = "cv", number = 10)
 # Train the model
-step.model <- train(reformulate(termlabels = var_modelo, response = 'SalePrice'), data = data.frame(trainTransformed)  ,method = "leapBackward", tuneGrid = data.frame(nvmax = 90:200),trControl = train.control,sep = NULL)
+#step.model <- train(reformulate(termlabels = var_modelo, response = 'SalePrice'), data = #data.frame(trainTransformed)  ,method = "leapBackward", tuneGrid = data.frame(nvmax = #60:200),trControl = train.control,sep = '.')
 #step.model$bestTune
 #step.model$results
 #summary(step.model$finalModel)
-step_coef <- coef(step.model$finalModel, step.model$bestTune$nvmax)
-lm_formula <- as.formula(str_replace(paste("SalePrice ~ ",paste(names(step_coef)[-1] , collapse=" + "), sep = " "),'&','.'))
-modelStepForward <- lm(lm_formula, data = data.frame(trainTransformedDummies))
-summary(modelStepForward)
+#step_coef <- coef(step.model$finalModel, step.model$bestTune$nvmax)
+#lm_formula <- as.formula(gsub("[[:space:]]","",str_replace(paste("SalePrice~",paste(names(step_c#oef)[-1] , collapse="+"), sep = ""),'&','.'),))
+#modelStepForward <- lm(lm_formula, data = data.frame(trainTransformedDummies))
+#summary(step.model)
+#prediccion <- predict(step.model$finalModel,data.frame(testTransformedDummies))
+#par(mfrow=c(2,2))
+#plot(modelStepForward)
+#plot(modelStepForward,4,id.n=5)
+#plot(modelStepForward,5,id.n=5)
 ```
+
+Debido al fracaso del anterior modelo, lo intentaremos con una librería distinta que parece que funciona mejor. No obstante, en la ejecución de la misma nos indica que en la selección de variables realizadas siguen existiendo variables correladas.
+
+```{r}
+library('olsrr')
+modelStepForward <- ols_step_forward_p(modelRegressionTotal)
+length(modelStepForward$predictors)
+cat('El modelo stepforward usa', length(modelStepForward$model$coefficients), 'variables ')
+#plot(modelStepForward)
+#ols_plot_resid_fit(modelStepForward$model)
+```
+
+ Y por último, utilizando la libreria caret intentarmos obtener una reducción del número de parámetros del modelo mediante una regularización de tipo "lasso":
 
 ```{r}
 
 gridLamdas <- expand.grid(alpha = 1, lambda = seq(0.001,0.1,by = 0.0005))
 varControl <-caret::trainControl(method="cv", number=10)
 lasso_mod <- train(reformulate(termlabels = var_modelo, response = 'SalePrice'), data = data.frame(trainTransformed), method='glmnet', trControl= varControl, tuneGrid=gridLamdas) 
-lasso_mod$bestTune
-min(lasso_mod$results$RMSE)
+#lasso_mod$bestTune
+#min(lasso_mod$results$RMSE)
 lassoVarImp <- varImp(lasso_mod,scale=F)
 lassoImportance <- lassoVarImp$importance
 varsSelected <- length(which(lassoImportance$Overall!=0))
@@ -1299,12 +1331,16 @@ varsNotSelected <- length(which(lassoImportance$Overall==0))
 cat(' El modelo de lasso usa', varsSelected, 'variables en el modelo, y rechazo ', varsNotSelected, 'variables.')
 
 
-lm_formula_2 <- as.formula(str_replace(paste("SalePrice ~ ",paste(predictors(lasso_mod) , collapse=" + "), sep = " "),'&','.'))
-modelLasso <- lm(lm_formula_2, data = data.frame(trainTransformedDummies))
+#lm_formula_2 <- as.formula(str_replace(paste("SalePrice ~ ",paste(predictors(lasso_mod) , #collapse=" + "), sep = " "),'&','.'))
+#modelLasso <- lm(lm_formula_2, data = data.frame(trainTransformedDummies))
 #summary(modelLasso)
 
 
+
+
 ```
+
+   Como vemos, lasso ha quitado una gran cantidad de regresores, demasiados para nuestro gusto, por lo que no podemos estar seguros de que haya funcionado correctamente.
 
 
 8. Ajuste, interpretación y diagnosis del modelo de regresión lineal múltiple (2 puntos)
