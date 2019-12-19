@@ -952,21 +952,76 @@ for(i in 1:ncol(train)){
  
         nombreCol = names(train)[i]
   
+        if(nombreCol == 'MasVnrArea' | nombreCol == 'MiscVal' | nombreCol == 'SaleCondition' ) {
+         
+        } else
         if (nombreCol %in% variablesTransformar & nombreCol != 'SalePrice'){
+            
             train[,i] <- log(train[,i] +1)
+            #test[,i] <- log(test[,i] +1)
+            #validation[,i] <- log(validation[,i] +1)
+        } else if(nombreCol == 'SalePrice'){
+            train[,i] <- log(train[,i])
+            #test[,i] <- log(test[,i])
+            #validation[,i] <- log(validation[,i])
+        }else if(nombreCol == 'TotalSF'){
+            train[,i] <- log(train[,i])
+            #test[,i] <- log(test[,i])
+            #validation[,i] <- log(validation[,i])
+        } 
+    
+}
+
+
+for(i in 1:ncol(test)){
+ 
+        nombreCol = names(test)[i]
+  
+        
+        if(nombreCol == 'MasVnrArea' | nombreCol == 'MiscVal' | nombreCol == 'SaleCondition' ) {
+         
+        } else
+        if (nombreCol %in% variablesTransformar & nombreCol != 'SalePrice'){
+            
+            #train[,i] <- log(train[,i] +1)
             test[,i] <- log(test[,i] +1)
+            #validation[,i] <- log(validation[,i] +1)
+        } else if(nombreCol == 'SalePrice'){
+            #train[,i] <- log(train[,i])
+            test[,i] <- log(test[,i])
+            #validation[,i] <- log(validation[,i])
+        }else if(nombreCol == 'TotalSF'){
+            #train[,i] <- log(train[,i])
+            test[,i] <- log(test[,i])
+            #validation[,i] <- log(validation[,i])
+        } 
+    
+}
+
+
+for(i in 1:ncol(validation)){
+ 
+        nombreCol = names(validation)[i]
+        if(nombreCol == 'MasVnrArea' | nombreCol == 'MiscVal' | nombreCol == 'SaleCondition' ) {
+         
+        } else
+        if (nombreCol %in% variablesTransformar & nombreCol != 'SalePrice'){
+            
+            #train[,i] <- log(train[,i] +1)
+            #test[,i] <- log(test[,i] +1)
             validation[,i] <- log(validation[,i] +1)
         } else if(nombreCol == 'SalePrice'){
             train[,i] <- log(train[,i])
-            test[,i] <- log(test[,i])
+            #test[,i] <- log(test[,i])
             validation[,i] <- log(validation[,i])
         }else if(nombreCol == 'TotalSF'){
             train[,i] <- log(train[,i])
-            test[,i] <- log(test[,i])
+            #test[,i] <- log(test[,i])
             validation[,i] <- log(validation[,i])
-        }
+        } 
     
 }
+
 
 
 ```
@@ -1013,6 +1068,8 @@ validation <-  validation %>% dplyr::mutate( has2ndFloor := ifelse( `2ndFlrSF`  
    A continuación transformaremos en columnas de tipo Factor aquellas que tiene valores alfanuméricos y que no parece que tengan un orden natural:
 
 ```{r}
+
+library(plyr)
 
 nombresVariablesFactores  <- c('MiscFeature','Alley','Fence','LotConfig','GarageType','MSZoning','Exterior1st','Exterior2nd','Electrical','SaleType','SaleCondition','Foundation','Heating','RoofStyle',
 'RoofMatl','LandContour','BldgType','HouseStyle','Neighborhood','Condition1','Condition2','MoSold','YrSold','Street','LotShape','Utilities','LandSlope','MasVnrType','BsmtFinType2','CentralAir','Functional','PavedDrive','hasPool','hasBasement','hasFirePlaces')
@@ -1171,13 +1228,13 @@ library(forcats)
 
 ```{r}
 train_sin_na <- train %>%  na.omit() %>% dplyr::select(-Id)
-preProcValues <- preProcess(train_sin_na  %>% dplyr::select(-OverallQual, -OverallCond),method = c("center", "scale"))
+preProcValuesTrain <- preProcess(train_sin_na  %>% dplyr::select(-OverallQual, -OverallCond),method = c("center", "scale"))
 
 test_sin_na <- test %>%  na.omit() %>% dplyr::select(-Id)
-preProcValues <- preProcess(train_sin_na  %>% dplyr::select(-OverallQual, -OverallCond),method = c("center", "scale"))
+preProcValuesTest <- preProcess(train_sin_na  %>% dplyr::select(-OverallQual, -OverallCond),method = c("center", "scale"))
 
 validation_sin_na <- validation %>%  na.omit() %>% dplyr::select(-Id)
-preProcValues <- preProcess(train_sin_na  %>% dplyr::select(-OverallQual, -OverallCond),method = c("center", "scale"))
+preProcValuesValidation <- preProcess(train_sin_na  %>% dplyr::select(-OverallQual, -OverallCond),method = c("center", "scale"))
 
 ```
 
@@ -1196,16 +1253,20 @@ var_modelo_with_SalePrice = c(var_modelo,'SalePrice')
 ```{r}
 train_sin_na <- train %>%  na.omit() %>% dplyr::select(-Id)
 test_sin_na <- test %>%  na.omit() %>% dplyr::select(-Id)
+validation_sin_na <- validation %>%  na.omit() %>% dplyr::select(-Id)
 
 modelRegressionTotal <- lm(reformulate(termlabels = var_modelo, response = 'SalePrice') ,data=train_sin_na)
 summary( modelRegressionTotal )
 
 
-trainTransformed <- predict(preProcValues, train_sin_na)
-testTransformed <- predict(preProcValues, test_sin_na)
-dummies <- dummyVars(reformulate(termlabels = var_modelo_with_SalePrice ),fullRank = T, data = data.frame(trainTransformed),sep=NULL)
-trainTransformedDummies <- predict(dummies, newdata = trainTransformed)
-testTransformedDummies <- predict(dummies, newdata = testTransformed)
+trainTransformed <- predict(preProcValuesTrain, train_sin_na)
+testTransformed <- predict(preProcValuesTest, test_sin_na)
+validationTransformed <- predict(preProcValuesValidation, validation_sin_na)
+
+dummiesTrain <- dummyVars(reformulate(termlabels = var_modelo_with_SalePrice ),fullRank = T, data = data.frame(trainTransformed),sep=NULL)
+dummiesTest <- dummyVars(reformulate(termlabels = var_modelo_with_SalePrice ),fullRank = T, data = data.frame(testTransformed),sep=NULL)
+trainTransformedDummies <- predict(dummiesTrain, newdata = trainTransformed)
+testTransformedDummies <- predict(dummiesTest, newdata = testTransformed)
 
 ```
 
