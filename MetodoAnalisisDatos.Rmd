@@ -88,7 +88,7 @@ introduce(dataset)
 
 ```
 
-Vemos que el dataset está dividio en:
+Vemos que el dataset está dividido en:
 
 * 81 variables distintas, en las que una de ellas es la clave principal (denominada Id) que no debermos tener en cuenta en el análisis de regresión. De estas variables, 43 son discretas y 38 contínuas. Vemos también que hay una gran cantidad de "missings" y el valor de "complete_row" es cero, lo que indica que ha habido algún problema con la lectura del dataset en algunas columnas.
 
@@ -210,6 +210,7 @@ columnas_borrar_incomodas <- c('BsmtFinType1','LowQualFinSF','MasVnrArea','BsmtH
 ```
 
 Las variables que nos encontraremos en el dataset son las siguientes:
+
 **MSSubClass:** La clase de construcción
 **MSZoning:** La clasificación general de zonificación
 **LotFrontage:** Pies lineales de calle conectados a la propiedad
@@ -304,12 +305,16 @@ var_discretas <- c('BsmtFullBath','BsmtHalfBath','FullBath','HalfBath','BedroomA
 
 var_continuas <- c('LotFrontage','LotArea','MasVnrArea','BsmtFinSF1','BsmtFinSF2','BsmtUnfSF','TotalBsmtSF','1stFlrSF','2ndFlrSF','LowQualFinSF','GrLivArea','GarageArea','WoodDeckSF','OpenPorchSF','EnclosedPorch', '3SsnPorch','ScreenPorch','PoolArea','MiscVal','SalePrice')
 
+var_continuas_sin_columnas_imputacion <- c('LotFrontage','LotArea','MasVnrArea','BsmtFinSF1','BsmtFinSF2','BsmtUnfSF','TotalBsmtSF','1stFlrSF','2ndFlrSF','LowQualFinSF','GrLivArea','GarageArea','WoodDeckSF','OpenPorchSF','EnclosedPorch', '3SsnPorch','ScreenPorch','PoolArea','MiscVal','SalePrice')
+
+
 var_ordinales <- c('LotShape','Utilities','LandSlope','OverallQual','OverallCond','ExterQual','ExterCond','BsmtQual','BsmtCond','BsmtExposure','BsmtFinType1','BsmtFinType2','HeatingQC','CentralAir','Electrical','KitchenQual','Functional','FireplaceQu','GarageFinish','GarageQual','GarageCond','PavedDrive','PoolQC','Fence')
 
 var_nominales <- c('MSSubClass','MSZoning','Street','Alley','LandContour','LotConfig','Neighborhood','Condition1','Condition2','BldgType','HouseStyle','RoofStyle','RoofMatl','Exterior1st',
 'Exterior2nd','MasVnrType','Foundation','Heating','GarageType','MiscFeature', 'SaleType','SaleCondition')
 
 var_continuas_discretas = c(var_continuas,var_discretas)
+var_continuas_discretas_sin_imputacion = c(var_continuas_sin_columnas_imputacion,var_discretas)
 
 var_modelo = c()
 var_columnas_eliminadas = c()
@@ -331,6 +336,7 @@ variablesReporte <- list(
 )
 #skim_with(numeric = variablesReporte, append = FALSE) 
 skim(train)  %>% pander()
+
 
 ```
 
@@ -423,6 +429,8 @@ Ahora podemos prestar verdadera atención a las columnas con datos faltantes.
 Si nos fijamos en la columna que más datos faltantes tiene, podemos ver en la descripción del dataset que son la cantidad de pies lineales que hay de acera hasta la puerta de la casa. Además, leyendo la documentación del dataset vemos que los NA's no significa que no tengan conexión con la acera (un edificio de varios pisos por ejemplo), sino que son datos faltantes. Hemos considerado que una columna con más de un 15% de datos faltantes nos va a desbalancear el dataset drásticamente, por lo que vamos a prescindir de este valor para nuestro estudio y para la imputación de missings, por lo que la borramos del dataset.
     
 ```{r message=FALSE, warning=FALSE, echo=FALSE}
+
+var_columnas_eliminadas <- c(var_columnas_eliminadas,'LotFrontage')
 
 train <- dplyr::select(train, -LotFrontage)
 train_na<- dplyr::select(train_na, -LotFrontage)
@@ -586,7 +594,7 @@ lmp <- function (modelobject) {
     return(p)
 }
 
-# estas columna dan problemas
+# estas columna dan problemas, la varible 3SnnPorch empieza por un número y a la hora de ejecutar el modelo para ver si son significativas en la regresión  
 var_columnas_eliminadas = c(var_columnas_eliminadas,'3SsnPorch')
 
 for(i in colnames(train)[elementosBajaVarianza]) {
@@ -604,7 +612,7 @@ for(i in colnames(train)[elementosBajaVarianza]) {
 
 Otra cosa que se observa en los anteriores diagramas es que todas las distribuciones continen un alto grado de asimetría (Skewness), cosa que habrá que tener en cuenta por si hay que realizar algún tipo de transformación sobre ellas en futuros apartados de la práctica:
     
-Ahora realizaremos el mismo análisis con las variables ordinales:
+Ahora realizaremos el mismo análisis con las variables ordinales, que no son otra cosa que variables categóricas pero que encierran una relación de orden interna. El tratamiento de estas variables para transformarlas en categóricas y cambiar el ordenamiento alfabético que R les da por defecto:
 
 ```{r}
 
@@ -612,7 +620,7 @@ train %>%  dplyr::select(var_ordinales)  %>% plot_bar()
 
 ```
 
-Se observan práctimante las mismas anomalías en en el caso anterior.
+Se observan práctimante las mismas anomalías en en el caso anterior, variables con distribuciones muy alejadas de la normalidad y en muchos casos dichas variables apenas aportan información debido a que la mayoría de los valores están concentrados en una única categoría.
 
 Proseguiremos con las variables contínuas:
   
@@ -625,7 +633,7 @@ train %>%  dplyr::select(var_continuas) %>% plot_histogram()
 
 Los comentarios que se pueden hacer en este caso son los siguientes:
 
-* Muy pocas variables parecen seguir una distribución normal y casi todas tienen un fuerte sesgo hacia la izquierda (y unas pocas a la derecha), sugeriendo para muchas de ellas una transformación de tipo logarítmico. Además, algunas de ellas parecen presentar numerosos "outliers" debido a que el rango de variación de las mismas es muy elevado en una gran parte de los valores finales sin que aparezcan casi valores en los mismos. 
+* Muy pocas variables parecen seguir una distribución normal y casi todas tienen un fuerte sesgo hacia la izquierda (y unas pocas a la derecha), sugiriendo para muchas de ellas una transformación de tipo logarítmico. Además, algunas de ellas parecen presentar numerosos "outliers" debido a que el rango de variación de las mismas es muy elevado en una gran parte de los valores finales sin que aparezcan casi valores en los mismos. 
 
 * La variable "Id" es una especie de clave primária organizadora de las filas y hay que eliminarla en los procesos de regresión.
 
@@ -637,8 +645,17 @@ train %>%  dplyr::select(var_discretas) %>% plot_histogram()
 
 ```
  
-Comentarios parecidos a el análisis de distribución de las variables contínuas se pueden hacer para estas variables.
-
+ Comentarios parecidos a el análisis de distribución de las variables contínuas se pueden hacer para estas variables. No obstante merece la pena recalcar que algunas de estas variables (YearBuilt,YearRemodAdd y YrSold) codifican años. En estos casos, para simplificar el modelo y debido a la irregular distribución de las mismas, se dividirán estas variables en rangos (de, por ejemplo, 20 años) y se creará una faceta representando esta división en el apartado de tratamiento de variables cuantitativas. 
+ 
+ Por último representaremos en sendos diagramas de barras las variables cualitativas nominales.  Estas variables deberán convertirse en columnas de tipo "factor" en el dataset sin que el orden que tengan sea realmente importante.
+ 
+```{r}
+train %>%  dplyr::select(var_nominales) %>% plot_bar(nrow =2,ncol=2)
+``` 
+ 
+ Observamos que hay una variable nominal que tiene una gran cantidad de valores. Esa variable (denominada "Neighbourhoud") parece especialmente importante debido a que codifica el barrio al que pertenece la casa puesta a la venta, y parece que será importante en el modelo final, por la evidente correlación que habrá entre los precios de la vivienda y la zona en la que se encuentran. No obstante, es una variable con una gran cantidad de valores distintos, lo cuál podría ser un problema para el modelo de regresión lineal.
+ 
+ 
 Ahora nos ocuparemos del análisis de la variable que representa la variable dependiente en nuestro modelo, el precio de las casas. En primer lugar dibujaremos su histograma:
 
 ```{r}
@@ -651,7 +668,7 @@ ggplot(train, aes(x=SalePrice)) +
 
 ```
 
-Vemos que esta variable tiene un importe sesgo a la izquierda y parece que un cambio de variable de tipo logarítmico podría convertirla en una variable con distribución normal, cosa importante para el modelo lineal de regresión múltiple. Confirmemos esta hipótesis realizando el cambio de variable en la misma y dibujando su función de distribución normal aproximada:
+Vemos que esta variable tiene un importe sesgo a la izquierda y parece que un cambio de variable de tipo logarítmico podría convertirla en una variable con distribución normal, cosa importante para el modelo lineal de regresión múltiple. El sesgo es muy fácilmente explicable por la naturaleza de la propia variable: la mayoría de las casas deberán tener un precio ajustado a la distribución de la riqueza entre los habitantes de la ciudad, y muy pocas tendrán un gran valor (casas lujosas) o serán infraviviendas. Confirmemos esta hipótesis realizando el cambio de variable en la misma y dibujando su función de distribución normal aproximada:
 
 ```{r}
 
@@ -664,7 +681,7 @@ fitDistribution <- fitdistr(log10(train$SalePrice), densfun = "normal")
 ```
 
 Vemos que, efectivamente, lo que hemos comentado en el anterior apartado se cumple. 
-Detectamos también que el rango dinámico de la variable es muy grande en su parte    derecha sin que apenas haya valores en dicho intervalo, lo que invita a pensar en la presencia de "outliers". Dibujaremos sendos diagramas de cajas con la variable original y la variable transformada:
+Detectamos también que el rango dinámico de la variable es muy grande en su parte    derecha sin que apenas haya valores en dicho intervalo, lo que invita a pensar en la presencia de "outliers" (casas de un gran valor económico reservadas a la gente más rica de la ciudad). Dibujaremos sendos diagramas de cajas con la variable original y la variable transformada:
 
 ```{r}
 
@@ -700,18 +717,14 @@ Las que más se aproximan a esta distribución son: LotArea, LotFrontage, GrLivA
 Almacenaremos el grado de asimetría de dichas variables para en un futuro poder tener un criterio más claro de qué variables son candidatas a un tipo de transformación logarítmica:
 
 ```{r}
-
 var_continuas_discretas = c(var_continuas,var_discretas)
-
+library(moments)
 listasVariablesSkewness <-  na.omit(train %>% dplyr::select(var_continuas_discretas)) %>% skewness()
-
-listasVariablesSkewness
-
-variablesSkewnessAlto <- c('LotArea','LowQualFinSF','3SsnPorch','PoolArea','MiscVal')  
+variablesSkewnessAlto <- listasVariablesSkewness[abs(listasVariablesSkewness) > 0.8]  
 
 ```
 
-Ahora procedermos a realizar el análisis vibariante de nuestros datos. Empezaremos con analizar los coeficientes de correlación entre las distintas variables. El siguiente diagrama intenta dibujar un mapa de calor de dichas correlaciones para las variables contínuas, pero debido a la gran cantidad de varibles en dicho diagrama no se puede visualizar nada con claridad:
+Ahora procedermos a realizar el análisis vivariante de nuestros datos. Empezaremos con analizar los coeficientes de correlación entre las distintas variables. El siguiente diagrama intenta dibujar un mapa de calor de dichas correlaciones para las variables contínuas, pero debido a la gran cantidad de varibles en dicho diagrama no se puede visualizar nada con claridad:
 
 
 ```{r}
@@ -721,29 +734,58 @@ plot_correlation(na.omit(splitDataset$continuous), type = "c" ,maxcat = 5L,theme
 
 ```
 
-Crearemos una matriz de correlaciones con las variables continuas para intentar evidencia de mejor forma 
+Crearemos una matriz de correlaciones con las variables continuas para intentar evidencia de mejor forma estos posibles casos de variables fuertemente correlacionadas que podrían desestabilizar el resultado del proceso de regresión lineal:
 
 ```{r}
-
-
+library(corrr)
 corrmatrix <-corrr::correlate(na.omit(train %>% dplyr::select(var_continuas)))
-rplot(corrmatrix, legend = TRUE, shape = 16)
-network_plot(corrmatrix)
-
+rplot(corrmatrix, legend = TRUE, shape = 16,print_cor = TRUE) +theme(axis.text.x = element_text(angle = 90))
 
 ```
+
+Con esta matriz se observan lo siguiente:
+      * La mayor parte de las variables representan una correlación positiva con el precio de la vivienda y entre ellas. Eso es normal debido a que muchas representan cantidades (pies cuadrados en las distintas zonas en las que se descompone las estancias de la vivienda, número y tamaño de cada planta, tamaño de garage y sótanos, etc. ). Evidentemente, cuandos mayores son estos números, normalmente mayor será el valor de la vivienda.
+      * Las variables 1stFlrSF y TotalBsmtSF estan fuertemente correladas, habría que quitar una de ellas en el modelo (es normal que haya una correlacion entre la superficie total del sótano y la de la primera planta)
+      * Existen correlaciones moderadas entre las variables GrLivArea y 1stFlrSF y 2ndFlrSF, no obstante un análisis más detentenido nos muestra que la suma de las siguientes variables tienen correlacion unidad, lo cuál es un punto a favor en la consistencia de los datos de estas variables en el dataset:
 
 ```{r}
-
-corrmatrix2 <-corrr::correlate(na.omit(train %>% dplyr::select(var_discretas)))
-rplot(corrmatrix2, legend = TRUE, shape = 16)
-network_plot(corrmatrix2)
-
-corrmatrix3 <-corrr::correlate(na.omit(train %>% dplyr::select(var_continuas_discretas)))
-rplot(corrmatrix3, legend = TRUE, shape = 16)
-network_plot(corrmatrix3)
-
+cor(train$GrLivArea, (train$`1stFlrSF` + train$`2ndFlrSF` + train$LowQualFinSF))
 ```
+
+ Esto es lógico debido a que la suma de las superficies habitables de la primera y segunda planta mas la superficie de "baja calidad" tienen que coicidir con la superficie total habitable sin contar los sótanos. Es por ello que estas variables o hay que transformarlas para evitar este caso de correlación perfecta o bien eliminar del modelo alguna de ellas. La decisión se tomará mas adelante.
+      
+  A continuación mostraremos un tipo de gráfica que muestra de forma más visual la anterior matriz de correlación. En ella cuando más cerca están unos puntos de otros existe una mayor similitud entre las distintas variables. Cada una de ellas está a su vez enlazada con una "banda" de color azul o rojo que cuantifica el grado de correlación entre las variables. En ella ya vemos que la variable objetivo de estudio, el precio de venta de la casa, está muy influenciada por todas aquellas variables continuas que cuantifican la superficie en la que se dividen las distintas parcelas de la propiedad (habitaciones, garage, porche, sótano, etc.). 
+
+
+```{r}
+network_plot(corrmatrix)
+``` 
+
+  Ahora proseguiremos el análisis con las variables discretas. Como antes, generaremos una matriz de correlación y 
+
+```{r}
+corrmatrix2 <-corrr::correlate(na.omit(train %>% dplyr::select(var_discretas)))
+rplot(corrmatrix2, legend = TRUE, shape = 16,print_cor = TRUE)+theme(axis.text.x = element_text(angle = 90))
+```
+```{r}
+network_plot(corrmatrix2)
+```
+
+ * Existe una fuerte correlación entre las variables GarageYrBlt y YearBuilt y YearRemodAdd, con ello podemos quitarnos la variable GarageYrBlt.
+
+   Ahora intentaremos hacer este mismo análisis agrupando tanto variables contínuas como discretas, El resultado es el siguiente:
+
+```{r}
+corrmatrix3 <-corrr::correlate(na.omit(train %>% dplyr::select(var_continuas_discretas)))
+rplot(corrmatrix3, legend = TRUE, shape = 16,print_cor = TRUE)+theme(axis.text.x = element_text(angle = 90))
+network_plot(corrmatrix3)
+```
+
+  Aqui Observamos una correlación muy fuerte entre las variables GarageCars y GarageArea, con lo que nos podemos quitar la variable GarageCars.Es lógico pensar que el número de coches que caben en una plaza de garage dependa de la superficie de ésta.
+   *  Existe una correlacion muy fuerte también entre las variables GrLiveArea y TotRmsAbvGrd (total de habitaciones), con lo que podemos quitar esta última del análisis al parecer más sencilla de entender la primera de las variables.
+   *  Hay una fuerte correlación entre las variables YearRemodAdd y las variables YearBuild y GarageYrBuild. Esto indica que en muchas de ellas el año en que se construyó el garage coincide con el año en que se contruyó la casa. En el caso de la variable YearRemodAdd parece que se ha hecho coincidir con el año de construcción si la casa no ha sufrido reformas.
+   
+   La siguiente función confirmará nuestras sospechas, buscando variables con fuertes correlaciones entre ellas:
 
 
 ```{r}
@@ -753,6 +795,29 @@ correlacionesProblematicas
 
 ```
 
+    Comprobamos que, efectivamente, las variables antes comentadas están entre las que aparecen en el listado.
+
+    Ahora intentaremos mostrar en un gráfico de barras el grado de correlación entre las variables anteriormente analizadas y la variable objeto de nuestro análisis:
+    
+```{r}
+
+
+
+rplot(corrmatrix3, legend = TRUE, shape = 16,print_cor = TRUE)+theme(axis.text.x = element_text(angle = 90))
+
+correlacionesSalesPrice <-focus(corrmatrix3,SalePrice)
+
+correlacionesSalesPrice%>%  arrange(SalePrice) %>%  ggplot(aes(x=rowname ,y=SalePrice,fill=factor(rowname))) +
+  geom_bar(position="dodge",stat="identity") + 
+  coord_flip() +
+  ggtitle("Strategies for Using Homework Solution and Mini-Lecture Screencasts")
+
+
+```
+
+    En este diagrama se muestra más claramente lo que ya se ha comentado con anterioridad: casi todas las variables tienen correlaciones positivas con el precio excepto unas pocas (sería interesante el averiguar por qué, ya que serían factores que influyen negativamente en el precio de una vivienda). Además las variables con mayores correlaciones tiene que ver con la superficie habitable de la casa y la superficie de la primera planta (lo que muestra que la mayoría de las casas tienen una única planta. El tener una segunda planta influye moderadamente en el precio de la vivienda). También hay correlaciones moderadas entre las características del garage, el año de construcción, la superficie del sótano, etc. Por lo tanto, estas variables deberían entrar significativamente en el modelo de regresión que generemos en esta práctica.
+    
+    Ahora realizaremos unos cuantos diagramas de dispersión entre las variables contínuas y el precio de la vivienda para ver si existen relaciones lineales entre dichas variables (importante para saber si el modelo de regresión lineal es el más adecuado para el problema que tenemos en esta práctica):
 
 ```{r}
 
@@ -762,68 +827,141 @@ na.omit(train %>% dplyr::select(var_continuas)) %>% plot_scatterplot( by = "Sale
 
 ```
 
-```{r}
-
-# na.omit(train_test %>% dplyr::select(var_discretas)) %>% plot_scatterplot( by = #"SalePrice", sampled_rows = 1000L) 
-
-#geom_smooth(method=lm, se=FALSE, fullrange=TRUE)
-
-```
+   Observamos que sí que existen ciertas relaciones apróximadas pero con algunas anomalías que comentamos a continuación:
+  
+  * Existen muchos valores concentrados en el valor cero para muchas de las variables (es normal, por ejemplo, que haya muchas casas que no tengan segundo piso, por lo que para ellas la variable que contabiliza su superficie sea cero).
+  * Se ven numerosos "outliers" en muchas variables, lo que es indicativo de casas con características especiales, tanto a la baja como al alza. En particular, la variable "LotArea" es un indicativo de casas de lujo para valores extremadamente altos de la misma (en su gráfica se muestran claramente estos "outliers"). Otra de las variables que muestran casas fuera de lo común es "3SsnPorch", en donde vemos que muy pocas casas la tienen informada con un valor mayor que cero.
 
 
- En cuanto a la detección de Outliers, como se ha indicado en 
-
+ En cuanto a la detección de Outliers, como se ha indicado con anterioridad, existen indicios más que suficientes para inferir que, efectivamente, en este dataset existe más de una casa que podría crear problemas en el modelo de regresión lineal. Para detectarlos y almacenarlos en una lista para su posterior tratamiento, ejecutaremos el siguiente código, que además mostrará un conjunto de diagramas de caja con las variables continuas del dataset:
 
 ```{r}
 library(EnvStats)
 listaOutliers <- list()
+listaBoxPlots <- c()
 dataset_var_continuas <- train %>% dplyr::select(var_continuas)
 iterator = 1 
 for(i in colnames(dataset_var_continuas)) {
   outlier_values <- boxplot.stats(dataset_var_continuas[[i]])$out
-  boxplot(dataset_var_continuas[[i]], main=i, boxwex=0.1)
-  outliersRosen <- rosnerTest(dataset_var_continuas[[i]], k = length(outlier_values)-2, warn = F)
+  boxPlotDibujar <- boxplot(dataset_var_continuas[[i]], main=i, boxwex=0.1)
+  boxPlotDibujar
+  listaBoxPlots <- c(listaBoxPlots,boxPlotDibujar)
+  outliersRosen <- rosnerTest(dataset_var_continuas[[i]], k = 4, warn = F)
   listaOutliers[[iterator]] <- outliersRosen
    iterator<- iterator +1
 }
 
-for(i in listaOutliers) {
-  print(c(i$data.name,i$n.outliers))
-}
+
+#library(gridExtra)
+#n <- length(listaBoxPlots)
+#nCol <- floor(sqrt(n))
+#do.call("grid.arrange", c(listaBoxPlots, ncol=nCol))
+
+
+#for(i in listaOutliers) {
+#  print(c(i$data.name,i$n.outliers))
+#}
 
 ```
 
+```{r}
+var_modelo_with_SalePrice = c(var_modelo,'SalePrice')
+var_columnas_eliminadas = c('TotRmsAbvGrd','GarageYrBlt','GarageCars','TotalBsmtSF','1stFlrSF','2ndFlrSF','BsmtFinSF2','1stFlrSF','2ndFlrSF','FullBath','HalfBath','BsmtFullBath','BsmtHalfBath','OpenPorchSF','3SsnPorch','EnclosedPorch','ScreenPorch','WoodDeckSF','GarageFinish','hasBasement','hasFirePlaces','LotFrontage')
+var_columnas_eliminadas_bajo_p_valor = c('LandSlope')
+var_transformacion_log = c('TotalSF')
+var_eliminar_correlacion = c('TotRmsAbvGrd','GarageYrBlt','GarageCars')
+
+```
 
 
 5. Transformaciones de variables cuantitativas (1 punto)
 
 ```{r}
 
-firsrtFlrSF <- '1stFlrSF'
-secondFlrSF   <- '2ndFlrSF'
-thirdSsnPorch <- '3SsnPorch'
-
-train <- train %>% dplyr::mutate( TotalSF = TotalBsmtSF + !!as.symbol(firsrtFlrSF) + !!as.symbol(secondFlrSF)  )
+train <- train %>% dplyr::mutate( TotalSF = TotalBsmtSF + `1stFlrSF` + `2ndFlrSF`  )
  train <- train %>% dplyr::mutate( Total_Bathrooms = FullBath + 0.5*HalfBath +  BsmtFullBath + 0.5*BsmtHalfBath )
- train <- train %>% dplyr::mutate( Total_porch_SF = OpenPorchSF +!!as.symbol(thirdSsnPorch) +  EnclosedPorch + ScreenPorch + WoodDeckSF )
- train <- train %>% dplyr::mutate( TotalSqrFootage = BsmtFinSF1 + BsmtFinSF2 + !!as.symbol(firsrtFlrSF) + !!as.symbol(secondFlrSF)  )
+ train <- train %>% dplyr::mutate( Total_porch_SF = OpenPorchSF +`3SsnPorch` +  EnclosedPorch + ScreenPorch + WoodDeckSF )
+ #train <- train %>% dplyr::mutate( TotalSqrFootage = BsmtFinSF1 + BsmtFinSF2 + !!as.symbol(firsrtFlrSF) + #!!as.symbol(secondFlrSF)  )
  
-test <- test %>% dplyr::mutate( TotalSF = TotalBsmtSF + !!as.symbol(firsrtFlrSF) + !!as.symbol(secondFlrSF)  )
+test <- test %>% dplyr::mutate( TotalSF = TotalBsmtSF + `1stFlrSF` + `2ndFlrSF`  )
  test <- test %>% dplyr::mutate( Total_Bathrooms = FullBath + 0.5*HalfBath +  BsmtFullBath + 0.5*BsmtHalfBath )
- test <- test %>% dplyr::mutate( Total_porch_SF = OpenPorchSF +!!as.symbol(thirdSsnPorch) +  EnclosedPorch + ScreenPorch + WoodDeckSF ) 
- test <- test %>% dplyr::mutate( TotalSqrFootage = BsmtFinSF1 + BsmtFinSF2 + !!as.symbol(firsrtFlrSF) + !!as.symbol(secondFlrSF)  )
+ test <- test %>% dplyr::mutate( Total_porch_SF = OpenPorchSF +`3SsnPorch` +  EnclosedPorch + ScreenPorch + WoodDeckSF ) 
+#test <- test %>% dplyr::mutate( TotalSqrFootage = BsmtFinSF1 + BsmtFinSF2 + !!as.symbol(firsrtFlrSF) + #!!as.symbol(secondFlrSF)  )
  
 # esta variable tiene los pies cuadrados "oficiales" del interior de la casa
-train <- train %>% dplyr::mutate( TotalSF = TotalBsmtSF + !!as.symbol(firsrtFlrSF) + !!as.symbol(secondFlrSF)  )
-
+validation <- validation %>% dplyr::mutate( TotalSF = TotalBsmtSF + `1stFlrSF` + `2ndFlrSF`  )
 # esta variable tiene los pies cuadrados de los cuartos de baño de la casa
-train <- train %>% dplyr::mutate( Total_Bathrooms = FullBath + 0.5*HalfBath +  BsmtFullBath + 0.5*BsmtHalfBath )
+validation<- validation %>% dplyr::mutate( Total_Bathrooms = FullBath + 0.5*HalfBath +  BsmtFullBath + 0.5*BsmtHalfBath )
+ # esta variable tiene los pies cuadrados del porche
+validation <- validation %>% dplyr::mutate( Total_porch_SF = OpenPorchSF +`3SsnPorch` +  EnclosedPorch + ScreenPorch + WoodDeckSF ) 
+ # esta variable tiene los pies cuadrados finalizados de la casa (tiene en cuenta las variables de sotano acabado y no tiene en cuenta la variable TotalBsmtSF)
+ #train_test <- train_test %>% dplyr::mutate( TotalSqrFootage = BsmtFinSF1 + BsmtFinSF2 + TotalBsmtSF+ #!!as.symbol(firsrtFlrSF) + !!as.symbol(secondFlrSF)  ) 
  
-# esta variable tiene los pies cuadrados del porche
-train <- train %>% dplyr::mutate( Total_porch_SF = OpenPorchSF +!!as.symbol(thirdSsnPorch) +  EnclosedPorch + ScreenPorch + WoodDeckSF ) 
+var_creadas_transformacion = c( 'TotalSF','Total_Bathrooms','Total_porch_SF','TotalSqrFootage','hasPool','hasGarage','hasBasement','hasFirePlaces','has2ndFloor')
+ 
+```
 
-# esta variable tiene los pies cuadrados finalizados de la casa (tiene en cuenta las variables de sotano acabado y no tiene en cuenta la variable TotalBsmtSF)
-train <- train %>% dplyr::mutate( TotalSqrFootage = BsmtFinSF1 + BsmtFinSF2 + !!as.symbol(firsrtFlrSF) + !!as.symbol(secondFlrSF)  ) 
+
+```{r}
+
+log_transform<- function(x, na.rm=FALSE) (log(x +1))
+variablesTransformar = names(variablesSkewnessAlto)[!names(variablesSkewnessAlto) %in% var_columnas_eliminadas  & !names(variablesSkewnessAlto) %in% var_eliminar_correlacion ]
+
+#variablesTransformar <- c(variablesTransformar,'TotalSF')
+
+for(i in 1:ncol(train)){
+ 
+        nombreCol = names(train)[i]
+  
+        if (nombreCol %in% variablesTransformar & nombreCol != 'SalePrice'){
+            train[,i] <- log(train[,i] +1)
+            test[,i] <- log(test[,i] +1)
+            validation[,i] <- validation(test[,i] +1)
+        } else if(nombreCol == 'SalePrice'){
+            train[,i] <- log(train[,i])
+            test[,i] <- log(test[,i])
+            validation[,i] <- log(validation[,i])
+        }else if(nombreCol == 'TotalSF'){
+            train[,i] <- log(train[,i])
+            test[,i] <- log(test[,i])
+            validation[,i] <- log(validation[,i])
+        }
+    
+}
+
+
+```
+```{r}
+train_sin_na <- train %>%  na.omit() %>% dplyr::select(-Id)
+preProcValues <- preProcess(train_sin_na  %>% dplyr::select(-OverallQual, -OverallCond),method = c("center", "scale"))
+```
+
+
+
+6. Procesado de variables cualitativas (1 punto)
+
+```{r}
+
+
+
+train <- train %>% dplyr::mutate( TotalSF = TotalBsmtSF + `1stFlrSF` + `2ndFlrSF`  )
+ train <- train %>% dplyr::mutate( Total_Bathrooms = FullBath + 0.5*HalfBath +  BsmtFullBath + 0.5*BsmtHalfBath )
+ train <- train %>% dplyr::mutate( Total_porch_SF = OpenPorchSF +`3SsnPorch` +  EnclosedPorch + ScreenPorch + WoodDeckSF )
+ #train <- train %>% dplyr::mutate( TotalSqrFootage = BsmtFinSF1 + BsmtFinSF2 + !!as.symbol(firsrtFlrSF) + #!!as.symbol(secondFlrSF)  )
+ 
+test <- test %>% dplyr::mutate( TotalSF = TotalBsmtSF + `1stFlrSF` + `2ndFlrSF`  )
+ test <- test %>% dplyr::mutate( Total_Bathrooms = FullBath + 0.5*HalfBath +  BsmtFullBath + 0.5*BsmtHalfBath )
+ test <- test %>% dplyr::mutate( Total_porch_SF = OpenPorchSF +`3SsnPorch` +  EnclosedPorch + ScreenPorch + WoodDeckSF ) 
+#test <- test %>% dplyr::mutate( TotalSqrFootage = BsmtFinSF1 + BsmtFinSF2 + !!as.symbol(firsrtFlrSF) + #!!as.symbol(secondFlrSF)  )
+ 
+# esta variable tiene los pies cuadrados "oficiales" del interior de la casa
+train_test <- train_test %>% dplyr::mutate( TotalSF = TotalBsmtSF + `1stFlrSF` + `2ndFlrSF`  )
+# esta variable tiene los pies cuadrados de los cuartos de baño de la casa
+ train_test <- train_test %>% dplyr::mutate( Total_Bathrooms = FullBath + 0.5*HalfBath +  BsmtFullBath + 0.5*BsmtHalfBath )
+ # esta variable tiene los pies cuadrados del porche
+ train_test <- train_test %>% dplyr::mutate( Total_porch_SF = OpenPorchSF +`3SsnPorch` +  EnclosedPorch + ScreenPorch + WoodDeckSF ) 
+ # esta variable tiene los pies cuadrados finalizados de la casa (tiene en cuenta las variables de sotano acabado y no tiene en cuenta la variable TotalBsmtSF)
+ #train_test <- train_test %>% dplyr::mutate( TotalSqrFootage = BsmtFinSF1 + BsmtFinSF2 + TotalBsmtSF+ #!!as.symbol(firsrtFlrSF) + !!as.symbol(secondFlrSF)  ) 
  
  
  
@@ -834,27 +972,54 @@ train <- train %>% dplyr::mutate( TotalSqrFootage = BsmtFinSF1 + BsmtFinSF2 + !!
 
 6. Procesado de variables cualitativas (1 punto)
 
+
 ```{r}
 
 #MSSubClass: 
-leveslMSubClass <- c(
-"1-STORY 1946 & NEWER ALL STYLES",
-"1-STORY 1945 & OLDER",
-"1-STORY W/FINISHED ATTIC ALL AGES",
-"1-1/2 STORY - UNFINISHED ALL AGES",
-"50	1-1/2 STORY FINISHED ALL AGES",
-"60	2-STORY 1946 & NEWER",
-"2-STORY 1945 & OLDER",
-"2-1/2 STORY ALL AGES",
-"SPLIT OR MULTI-LEVEL",
-"85	SPLIT FOYER",
-"DUPLEX - ALL STYLES AND AGES",
-"1-STORY PUD (Planned Unit Development) - 1946 & NEWER",
-"1-1/2 STORY PUD - ALL AGES",
-"160	2-STORY PUD - 1946 & NEWER",
-"PUD - MULTILEVEL - INCL SPLIT LEV/FOYER",
-"2 FAMILY CONVERSION - ALL STYLES AND AGES"
-)
+
+test <-  test %>% dplyr::mutate( hasPool := ifelse(PoolArea > 0, "True", "False")) 
+train <-  train %>% dplyr::mutate( hasPool := ifelse(PoolArea > 0, "True", "False"))  
+validation <-  validation %>% dplyr::mutate( hasPool := ifelse(PoolArea > 0, "True", "False"))  
+ 
+#test <-  test %>% dplyr::mutate( hasGarage := ifelse(GarageArea > 0, "True", "False")) 
+#train <-  train %>% dplyr::mutate( hasGarage := ifelse(GarageArea > 0, "True", "False"))  
+ 
+test <-  test %>% dplyr::mutate( hasBasement := ifelse(TotalBsmtSF > 0, "True", "False")) 
+train <-  train %>% dplyr::mutate( hasBasement := ifelse(TotalBsmtSF > 0, "True", "False")) 
+validation <-  validation %>% dplyr::mutate( hasBasement := ifelse(TotalBsmtSF > 0, "True", "False"))  
+
+
+test <-  test %>% dplyr::mutate( hasFirePlaces := ifelse(Fireplaces > 0, "True", "False")) 
+train <-  train %>% dplyr::mutate( hasFirePlaces := ifelse(Fireplaces > 0, "True", "False")) 
+validation <-  validation %>% dplyr::mutate( hasFirePlaces := ifelse(Fireplaces > 0, "True", "False")) 
+ 
+test <-  test %>% dplyr::mutate( has2ndFloor := ifelse(`2ndFlrSF`  > 0, "True", "False")) 
+train <-  train %>% dplyr::mutate( has2ndFloor := ifelse(`2ndFlrSF`  > 0, "True", "False")) 
+validation <-  validation %>% dplyr::mutate( has2ndFloor := ifelse( `2ndFlrSF`  > 0, "True", "False"))    
+
+
+
+
+nombresVariablesFactores  <- c('MiscFeature','Alley','Fence','LotConfig','GarageType','MSZoning','Exterior1st','Exterior2nd','Electrical','SaleType','SaleCondition','Foundation','Heating','RoofStyle',
+'RoofMatl','LandContour','BldgType','HouseStyle','Neighborhood','Condition1','Condition2','MoSold','YrSold','Street','LotShape','Utilities','LandSlope','MasVnrType','BsmtFinType2','CentralAir','Functional','PavedDrive','hasPool','hasBasement','hasFirePlaces')
+
+
+for(i in nombresVariablesFactores){
+        train[[i]] <- as.factor(train[[i]])
+        test[[i]] <- as.factor(test[[i]])
+        validation[[i]] <- as.factor( validation[[i]])
+}
+
+
+train$MSSubClass <- as.factor(train$MSSubClass)
+train$MSSubClass<-revalue(train$MSSubClass, c('20'='1 story 1946+', '30'='1 story 1945-', '40'='1 story unf attic', '45'='1,5 story unf', '50'='1,5 story fin', '60'='2 story 1946+', '70'='2 story 1945-', '75'='2,5 story all ages', '80'='split/multi level', '85'='split foyer', '90'='duplex all style/age', '120'='1 story PUD 1946+', '150'='1,5 story PUD all', '160'='2 story PUD 1946+', '180'='PUD multilevel', '190'='2 family conversion'))
+
+test$MSSubClass <- as.factor(test$MSSubClass)
+test$MSSubClass<-revalue(test$MSSubClass, c('20'='1 story 1946+', '30'='1 story 1945-', '40'='1 story unf attic', '45'='1,5 story unf', '50'='1,5 story fin', '60'='2 story 1946+', '70'='2 story 1945-', '75'='2,5 story all ages', '80'='split/multi level', '85'='split foyer', '90'='duplex all style/age', '120'='1 story PUD 1946+', '150'='1,5 story PUD all', '160'='2 story PUD 1946+', '180'='PUD multilevel', '190'='2 family conversion'))
+
+validation$MSSubClass <- as.factor(validation$MSSubClass)
+validation$MSSubClass<-revalue(validation$MSSubClass, c('20'='1 story 1946+', '30'='1 story 1945-', '40'='1 story unf attic', '45'='1,5 story unf', '50'='1,5 story fin', '60'='2 story 1946+', '70'='2 story 1945-', '75'='2,5 story all ages', '80'='split/multi level', '85'='split foyer', '90'='duplex all style/age', '120'='1 story PUD 1946+', '150'='1,5 story PUD all', '160'='2 story PUD 1946+', '180'='PUD multilevel', '190'='2 family conversion'))
+
 
 #OverallQual, OverallCond (dejarlas como estan)
 levesl1_10 <- c("Very Poor","Poor","Fair","Below Average","Average","Above Average","Good","Very Good","Excellent","Very Excellent")
@@ -915,97 +1080,90 @@ return_levesl_poolQC <- function(elements) {
 }
 
 
-#OverallCond
-train <- train %>% dplyr::mutate( ExterQual:=fct_relevel(ExterQual,return_position1_5))
-test <- test %>% dplyr::mutate( ExterQual:=fct_relevel(ExterQual,return_position1_5))
+library(forcats)
 
-#ExterCond , 
-train <- train %>% dplyr::mutate( ExterCond := fct_relevel(ExterCond,return_position1_5))
-test <- test %>% dplyr::mutate( ExterCond := fct_relevel(ExterCond,return_position1_5))
-
-#HeatingQC, 
-train <- train %>% dplyr::mutate( HeatingQC := fct_relevel(HeatingQC,return_position1_5))
-test <-  test %>% dplyr::mutate( HeatingQC := fct_relevel(HeatingQC,return_position1_5))
-
-#KitchenQual,
-train <- train %>% dplyr::mutate( KitchenQual := fct_relevel(KitchenQual,return_position1_5))
-test <-  test %>% dplyr::mutate( KitchenQual := fct_relevel(KitchenQual,return_position1_5))
-
-#GarageQual,
-train <- train %>% dplyr::mutate( GarageQual := fct_relevel(GarageQual,return_position1_5))
-test <-  test %>% dplyr::mutate( GarageQual := fct_relevel(GarageQual,return_position1_5))
-
-#GarageCond
-train <- train %>% dplyr::mutate( GarageCond := fct_relevel(GarageCond,return_position1_5))
-test <-  test %>% dplyr::mutate( GarageCond := fct_relevel(GarageCond,return_position1_5))
-  
-#BsmtQual
-train <- train %>% dplyr::mutate( BsmtQual := fct_relevel(BsmtQual,return_position1_6))
-test <-  test %>% dplyr::mutate( BsmtQual := fct_relevel(BsmtQual,return_position1_6))
-
-#BsmtCond,
-train <- train %>% dplyr::mutate( BsmtCond := fct_relevel(BsmtCond,return_position1_6))
-test <- test %>% dplyr::mutate( BsmtCond := fct_relevel(BsmtCond,return_position1_6))
-
-#FireplaceQu
-train <- train %>% dplyr::mutate(FireplaceQu := fct_relevel(FireplaceQu,return_position1_6))
-test <-  test %>% dplyr::mutate(FireplaceQu := fct_relevel(FireplaceQu,return_position1_6))
-
-#BsmtExposure
-train <- train %>% dplyr::mutate( BsmtExposure := fct_relevel(BsmtExposure,return_position1_5_B))
-test <-  test %>% dplyr::mutate( BsmtExposure := fct_relevel(BsmtExposure,return_position1_5_B))
-
-#BsmtFinType1 
-train <- train %>% dplyr::mutate( BsmtFinType1 := fct_relevel(BsmtFinType1,return_position1_7))
-test <-  test %>% dplyr::mutate( BsmtFinType1 := fct_relevel(BsmtFinType1,return_position1_7))
-
-#BsmtFinType2
+      #OverallCond
+      train <- train %>% dplyr::mutate( ExterQual:=fct_relevel(ExterQual,return_position1_5))
+      test <- test %>% dplyr::mutate( ExterQual:=fct_relevel(ExterQual,return_position1_5))
+     validation <- validation %>% dplyr::mutate( ExterQual:=fct_relevel(ExterQual,return_position1_5))
+      #ExterCond , 
+      train <- train %>% dplyr::mutate( ExterCond := fct_relevel(ExterCond,return_position1_5))
+      test <- test %>% dplyr::mutate( ExterCond := fct_relevel(ExterCond,return_position1_5))
+      validation <- validation %>% dplyr::mutate( ExterCond := fct_relevel(ExterCond,return_position1_5))
+      #HeatingQC, 
+      train <- train %>% dplyr::mutate( HeatingQC := fct_relevel(HeatingQC,return_position1_5))
+      test <-  test %>% dplyr::mutate( HeatingQC := fct_relevel(HeatingQC,return_position1_5))
+      validation <- validation %>% dplyr::mutate( HeatingQC := fct_relevel(HeatingQC,return_position1_5))
+      #KitchenQual,
+      train <- train %>% dplyr::mutate( KitchenQual := fct_relevel(KitchenQual,return_position1_5))
+      test <-  test %>% dplyr::mutate( KitchenQual := fct_relevel(KitchenQual,return_position1_5))
+      validation <-  validation %>% dplyr::mutate( KitchenQual := fct_relevel(KitchenQual,return_position1_5))
+      #GarageQual,
+      train <- train %>% dplyr::mutate( GarageQual := fct_relevel(GarageQual,return_position1_5))
+      test <-  test %>% dplyr::mutate( GarageQual := fct_relevel(GarageQual,return_position1_5))
+      validation <-  validation %>% dplyr::mutate( GarageQual := fct_relevel(GarageQual,return_position1_5))
+      #GarageCond
+      train <- train %>% dplyr::mutate( GarageCond := fct_relevel(GarageCond,return_position1_5))
+      test <-  test %>% dplyr::mutate( GarageCond := fct_relevel(GarageCond,return_position1_5))
+     validation <-  validation %>% dplyr::mutate( GarageCond := fct_relevel(GarageCond,return_position1_5))
+      #BsmtQual
+      train <- train %>% dplyr::mutate( BsmtQual := fct_relevel(BsmtQual,return_position1_6))
+      test <-  test %>% dplyr::mutate( BsmtQual := fct_relevel(BsmtQual,return_position1_6))
+      validation <-  validation %>% dplyr::mutate( BsmtQual := fct_relevel(BsmtQual,return_position1_6))
+      #BsmtCond,
+      train <- train %>% dplyr::mutate( BsmtCond := fct_relevel(BsmtCond,return_position1_6))
+      test <- test %>% dplyr::mutate( BsmtCond := fct_relevel(BsmtCond,return_position1_6))
+      validation <- validation %>% dplyr::mutate( BsmtCond := fct_relevel(BsmtCond,return_position1_6))
+      #FireplaceQu
+      train <- train %>% dplyr::mutate(FireplaceQu := fct_relevel(FireplaceQu,return_position1_6))
+      test <-  test %>% dplyr::mutate(FireplaceQu := fct_relevel(FireplaceQu,return_position1_6))
+     validation <-  validation %>% dplyr::mutate(FireplaceQu := fct_relevel(FireplaceQu,return_position1_6))
+      #BsmtExposure
+      train <- train %>% dplyr::mutate( BsmtExposure := fct_relevel(BsmtExposure,return_position1_5_B))
+      test <-  test %>% dplyr::mutate( BsmtExposure := fct_relevel(BsmtExposure,return_position1_5_B))
+      validation <-  validation %>% dplyr::mutate( BsmtExposure := fct_relevel(BsmtExposure,return_position1_5_B))
+      #BsmtFinType1 
+      train <- train %>% dplyr::mutate( BsmtFinType1 := fct_relevel(BsmtFinType1,return_position1_7))
+      test <-  test %>% dplyr::mutate( BsmtFinType1 := fct_relevel(BsmtFinType1,return_position1_7))
+      validation <-  validation %>% dplyr::mutate( BsmtFinType1 := fct_relevel(BsmtFinType1,return_position1_7))
+      
+      #BsmtFinType2
       train <- train %>% dplyr::mutate( BsmtFinType1 := fct_relevel(BsmtFinType2,return_position1_7))
       test <-  test %>% dplyr::mutate( BsmtFinType1 := fct_relevel(BsmtFinType2,return_position1_7))
+      validation <-  validation %>% dplyr::mutate( BsmtFinType1 := fct_relevel(BsmtFinType2,return_position1_7))
+      
      #GarageFinish
       train <- train %>% dplyr::mutate( GarageFinish := fct_relevel(GarageFinish,return_levels_garage))
       test <-  test %>% dplyr::mutate( GarageFinish := fct_relevel(GarageFinish,return_levels_garage))
+      validation <-  validation %>% dplyr::mutate( GarageFinish := fct_relevel(GarageFinish,return_levels_garage))
+      
       # PoolQC
       train <- train %>% dplyr::mutate( PoolQC := fct_relevel(PoolQC,return_levesl_poolQC))
       test <-  test %>% dplyr::mutate( PoolQC := fct_relevel(PoolQC,return_levesl_poolQC))
+      validation <-  validation %>% dplyr::mutate( PoolQC := fct_relevel(PoolQC,return_levesl_poolQC))
 
 # YearBuilt: discretizamos la variable en tramos
 # YearRemodAdd: discretizamos la variable en tramos
 train$YearBuilt <- cut(train$YearBuilt, 
                    breaks=c(-Inf, 1930, 1960, 1990,Inf), 
-                   labels=c("1900-1930","1930-1960","1960-1990","1990-"))   
+                   labels=c("1900_1930","1930_1960","1960_1990","1990_"))   
 test$YearBuilt <- cut(test$YearBuilt, 
                    breaks=c(-Inf, 1930, 1960, 1990,Inf), 
-                   labels=c("1900-1930","1930-1960","1960-1990","1990-"))   
+                   labels=c("1900_1930","1930_1960","1960_1990","1990_"))   
+validation$YearBuilt <- cut(validation$YearBuilt, 
+                   breaks=c(-Inf, 1930, 1960, 1990,Inf), 
+                   labels=c("1900_1930","1930_1960","1960_1990","1990_"))   
 
       
 train$YearRemodAdd <- cut(train$YearRemodAdd, 
                    breaks=c(-Inf, 1930, 1960, 1990,Inf), 
-                   labels=c("1900-1930","1930-1960","1960-1990","1990-"))   
+                   labels=c("1900_1930","1930_1960","1960_1990","1990_"))   
 test$YearRemodAdd <- cut(test$YearRemodAdd, 
                    breaks=c(-Inf, 1930, 1960, 1990,Inf), 
-                   labels=c("1900-1930","1930-1960","1960-1990","1990-"))   
-
-    
-# creamos nuevas variablea que indiquen si la casa tiene piscina, segunda planta, etc
-#PoolArea,2ndFlrSF,GarageArea,TotalBsmtSF,Fireplaces
-      
-test <-  test %>% dplyr::mutate( hasPool := ifelse(PoolArea > 0, "True", "False")) 
-train <-  train %>% dplyr::mutate( hasPool := ifelse(PoolArea > 0, "True", "False"))       
- 
-test <-  test %>% dplyr::mutate( hasGarage := ifelse(GarageArea > 0, "True", "False")) 
-train <-  train %>% dplyr::mutate( hasGarage := ifelse(GarageArea > 0, "True", "False"))  
- 
-test <-  test %>% dplyr::mutate( hasBasement := ifelse(TotalBsmtSF > 0, "True", "False")) 
-train <-  train %>% dplyr::mutate( hasBasement := ifelse(TotalBsmtSF > 0, "True", "False")) 
- 
-test <-  test %>% dplyr::mutate( hasFirePlaces := ifelse(Fireplaces > 0, "True", "False")) 
-train <-  train %>% dplyr::mutate( hasFirePlaces := ifelse(Fireplaces > 0, "True", "False")) 
-
- 
-test <-  test %>% dplyr::mutate( has2ndFloor := ifelse(!!as.symbol(secondFlrSF)  > 0, "True", "False")) 
-train <-  train %>% dplyr::mutate( has2ndFloor := ifelse(!!as.symbol(secondFlrSF)  > 0, "True", "False")) 
-    
+                   labels=c("1900_1930","1930_1960","1960_1990","1990_"))   
+validation$YearRemodAdd <- cut(validation$YearRemodAdd, 
+                   breaks=c(-Inf, 1930, 1960, 1990,Inf), 
+                   labels=c("1900_1930","1930_1960","1960_1990","1990_"))   
 
 # para dummify variables si es necesario tenemos esta funcion del paquete dataexplorer
 #train <- dummify(train, maxcat = 50L, select = var_nominales)
