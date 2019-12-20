@@ -1321,6 +1321,8 @@ El siguiente código teóricamente realiza esa funcionalidad, pero hemos tenido 
 #plot(modelStepForward,4,id.n=5)
 #plot(modelStepForward,5,id.n=5)
 ```
+Al final, al realizar un predict del anterior modelo, da el siguiente error: Error: C stack usage  7971332 is too close to the limit
+
 
 Debido al fracaso del anterior modelo, lo intentaremos con una librería distinta que parece que funciona mejor. No obstante, en la ejecución de la misma nos indica que en la selección de variables realizadas siguen existiendo variables correladas.
 
@@ -1369,5 +1371,93 @@ cat('El modelo stepforward usa', length(modelStepForward$model$coefficients), 'v
 
 8. Ajuste, interpretación y diagnosis del modelo de regresión lineal múltiple (2 puntos)
 
+ En primer lugar almacenaremos los valores de las prediccion para la parte de test en 3 variables distintas. El segundo de los modelos da el siguiente warning 'prediction from a rank-deficient fit may be misleading' que no hemos sido capaces de discernir.
+
+```{r}
+ 
+#valoresPredichosModeloCompleto <- predict(modelRegressionTotal,testTransformed)
+
+#valoresPredichosModeloStepForward <- predict(modelStepForward$model,testTransformed)
+
+#valoresPredichosModeloLasso <- predict(lasso_mod,testTransformed)
+
+#vectorCorrelacionesModeloCompleto <- #data.frame(cbind(actuals=testTransformed$SalePrice,predicted=valoresPredichosModeloCompleto))
+#correlacionModeloCompleto <- cor(vectorCorrelacionesModeloCompleto)
+
+
+#vectorCorrelacionesModeloStepForward <- #data.frame(cbind(actuals=testTransformed$SalePrice,predicted=valoresPredichosModeloStepForward))
+#correlacionModeloStepForward <- cor(vectorCorrelacionesModeloStepForward)
+
+#vectorCorrelacionesModeloLasso <- #data.frame(cbind(actuals=testTransformed$SalePrice,predicted=valoresPredichosModeloLasso))
+#correlacionModeloLasso <- cor(vectorCorrelacionesModeloLasso)
+
+#cat('Correlacion modelo Completo entre predicciones train/test',correlacionModeloCompleto[1,2] )
+#cat('Correlacion modelo StepForward entre predicciones #train/test',correlacionModeloStepForward[1,2] )
+#cat('Correlacion modelo Lasso entre predicciones train/test',correlacionModeloLasso[1,2] )
+
+```
+  
+```{r}
+# library(DMwR)
+#regr.eval(valoresPredichosModeloCompleto,testTransformed$SalePrice)
+
+```
+
+```{r}
+
+#regr.eval(valoresPredichosModeloStepForward,testTransformed$SalePrice)
+
+```
+
+```{r}
+
+#regr.eval(valoresPredichosModeloLasso,testTransformed$SalePrice)
+
+```
+
+
+  
+```{r}
+summary(modelRegressionTotal)
+```
+  
+```{r}
+summary(modelStepForward$model)
+```  
+  
+```{r}
+min(lasso_mod$results$RMSE)
+```    
+  
+```{r}
+par(mfrow=c(2,2))
+plot(modelRegressionTotal)
+```
+
+```{r}
+plot(modelRegressionTotal,4,id.n=5)
+``` 
+
+```{r}
+plot(modelRegressionTotal,5,id.n=5)
+```
+  
+
+```{r}
+par(mfrow=c(2,2))
+plot(modelStepForward$model)
+```
+  
+
+```{r}
+plot(modelStepForward$model,4,id.n=5)
+``` 
+  
+```{r}
+plot(modelStepForward$model,5,id.n=5)
+```   
+  
+  
+  
 
 9. Valoración del profesor (1 punto)
