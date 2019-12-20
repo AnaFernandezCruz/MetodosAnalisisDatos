@@ -1369,7 +1369,7 @@ cat('El modelo stepforward usa', length(modelStepForward$model$coefficients), 'v
    Como vemos, lasso ha quitado una gran cantidad de regresores, demasiados para nuestro gusto, por lo que no podemos estar seguros de que haya funcionado correctamente.
 
 
-8. Ajuste, interpretación y diagnosis del modelo de regresión lineal múltiple (2 puntos)
+## Ajuste, interpretación y diagnosis del modelo de regresión lineal múltiple
 
  En primer lugar almacenaremos los valores de las prediccion para la parte de test en 3 variables distintas. El segundo de los modelos da el siguiente warning 'prediction from a rank-deficient fit may be misleading' que no hemos sido capaces de discernir.
 
@@ -1415,7 +1415,6 @@ cat('El modelo stepforward usa', length(modelStepForward$model$coefficients), 'v
 
 ```
 
-
   
 ```{r}
 summary(modelRegressionTotal)
@@ -1457,7 +1456,3 @@ plot(modelStepForward$model,4,id.n=5)
 plot(modelStepForward$model,5,id.n=5)
 ```   
   
-  
-  
-
-9. Valoración del profesor (1 punto)
