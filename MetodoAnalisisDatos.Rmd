@@ -21,6 +21,7 @@ library(forcats)
 library(ggpubr)
 library(corrr)
 library(moments)
+library('olsrr')
 
 seed <- 456
 
@@ -327,7 +328,7 @@ var_creadas_transformacion = c()
 
 A continuación realizaremos un pequeño informe mostrando algunas características de los datos que contienen el dataset:
 
-```{r message=FALSE, warning=FALSE}
+```{r message=FALSE, warning=FALSE, echo= FALSE}
 
 variablesReporte <- list(
   min = min,
@@ -335,9 +336,11 @@ variablesReporte <- list(
   mean = mean
 )
 #skim_with(numeric = variablesReporte, append = FALSE) 
+```
+
+
+```{r message=FALSE, warning=FALSE}
 skim(train)  %>% pander()
-
-
 ```
 
 ----------------------------------------------------------------
@@ -353,12 +356,10 @@ Tenemos que tener en cuenta si nuestros datos son de naturaleza
 - MNAR (Missing not at Random): la probabilidad de que falte un valor depende de alguna variable no observada (pej, gente que miente).
     
 Analizando nuestros datos vemos que nuestros datos faltantes pertenecen al grupo de MAR, ya que podemos tener capacidad o no para obtener cierta información de los domicilios de Boston, pero será totalmente aleatoria. Ésta es una buena noticia, ya que podemos utilizar técnicas de imputación para suplir los datos faltantes.
-    
-//*Para hacer un análisis de los datos que nos faltan vamos a utilizar la biblioteca VIM. Ésta biblioteca nos será muy útil ya que nos ayuda a analizar las posibles relaciones y estructuras de los valores faltantes e imputados.//* 
-    
-```{r plot_missing_all, message= FALSE, warning=FALSE, fig.width=40, fig.height=30}
-    
-##aggr_plot <- aggr(train, col=c('navyblue','red'), numbers=TRUE, sortVars=TRUE, cex.axis=.7, gap=3, ##ylab=c("Histogram of missing data","Pattern"))
+
+```{r plot_missing_all, message= FALSE, warning=FALSE, fig.width=40, fig.height=30, echo=FALSE}
+#Para hacer un análisis de los datos que nos faltan vamos a utilizar la biblioteca VIM. Ésta biblioteca nos será muy útil ya que nos ayuda a analizar las posibles relaciones y estructuras de los valores faltantes e imputados.//*    
+#aggr_plot <- aggr(train, col=c('navyblue','red'), numbers=TRUE, sortVars=TRUE, cex.axis=.7, gap=3, ylab=c("Histogram of missing data","Pattern"))
 
 ```
 
@@ -444,12 +445,12 @@ train_na<- dplyr::select(train_na, -LotFrontage)
 ```{r warning=FALSE}
 
 aggr_plot <- aggr(train_na,col=c('navyblue','red'), numbers=TRUE, sortVars=TRUE, cex.axis=.7, gap=3, ylab=c("Histogram of missing data","Pattern"))
-    ```
+
+```
     
 Vemos en el último gráfico que, omitiendo la columna con datos faltantes mayor que el 5%, la cantidad de datos faltantes es menor que el 3%. Además vemos en la gráfica de la derecha que lo más habitual es que no falten todos los datos a la vez y a continuación que falten datos de la primera columna "GarageYtBtt". 
     
-    
-    d. Proporción datos faltantes. 
+### Proporción de datos faltantes
     
 El siguiente paso es calcular la proporción de datos faltantes por columna. Para el caso en el que la proporción de datos faltantes sea menor que el 3% (0.03) imputaremos a los valores faltantes de variables cuantitativas su mediana o media, mientras que a las variables categóricas les imputaremos la categoría más frecuente. Para las columnas en que la proporcion de datos faltantes sea superior al 3% (0.03) tendremos que utilizar técnicas de imputación más avanzadas. Si en nuestro dataset se diera el caso en el que existen varias columnas de este útlimo tipo habría que realizar un análisis de sensibilidad para comprobar que no hemos alterado la naturaleza del dataset imputando los datos faltantes.
 
@@ -480,17 +481,15 @@ for (i in cuantitativas){
   list_values <- ifelse(is.na(train[[i]]), 
                        round(mean(train[[i]], na.rm=TRUE), 0), train[[i]])
   train[[i]] <- list_values
-  }
+}
 
 train
 #para variables categoricas con una proporción de datos faltantes menor que el 3%
 #vamos a imputar el valor más frecuente.  
 
-
 categoricas <- c('MasVnrType', 'MSZoning', 'Functional', 'Electrical',
 'KitchenQual', 'SaleType', 'Exterior1st', 'Exterior2nd',  'Utilities')
 for (i in categoricas){
-  
   y = as.data.frame(table(unlist(train[[i]])))
   sorted_list <-y[with(y, order(-Freq)),]
   frecuent_value <- sorted_list$Var1[1]
@@ -509,13 +508,14 @@ for (i in categoricas){
 }
 
 summary_despues_imputar <- summary(train)
+
 ```
 
 Solo nos faltaría una variable por imputar sus valores: GarageYrBlt. Esta columna indica el año en el que se construyó el garaje de la propiedad. No lo vamos a imputar con el valor medio ya que la proporción de datos faltantes es mayor al 3%, así que lo que proponemos para su imputación es lo siguiente: ya que conocemos el vecindario al que pertenecen los pisos, es lógico que el año de construcción del garaje sea similar para todo el vecindario. Vamos a proceder a agrupar los garages por vecindario e imputaremos el año medio correspondiente.
 
 ```{r}
-vecindario_precioGaraje<- train %>% dplyr::select(Neighborhood, GarageYrBlt)
 
+vecindario_precioGaraje<- train %>% dplyr::select(Neighborhood, GarageYrBlt)
 
 vecindario_agrupado <- vecindario_precioGaraje %>% 
     group_by(Neighborhood) %>% 
@@ -526,25 +526,21 @@ summary(vecindario_agrupado)
 #en el que fueron construidos sus garajes. Esos son los valores que usaremos para imputar.
 
 year_corregido<- c()
+
 for(j in 1:length(vecindario_precioGaraje$GarageYrBlt)) {
   if(is.na(vecindario_precioGaraje$GarageYrBlt[j])) {
-    #obtenemos el vecindario correspondiente al NA
+    #Obtenemos el vecindario correspondiente al NA
     vecindario = vecindario_precioGaraje$Neighborhood[j]
-    #ahora que conocemos el vecindario, tenemos que saber cual es el año que le corresponde
-        #Dentro de la lista de vecindarios, sacamos su numero de fila
+    #Ahora que conocemos el vecindario, tenemos que saber cual es el año que le corresponde dentro de la lista de vecindarios,          sacamos su numero de fila
     index_vecindario = which(grepl(vecindario, vecindario_agrupado$Neighborhood))
-    
-    #Entramos en este if porque hay dos vecindarios: Sawyer y SawyerW. Cuando buscamos el 
-    #de Sawyer nos da el indice de los dos vecindarios, asi que nos quedamos con el primero.
+    #Entramos en este if porque hay dos vecindarios: Sawyer y SawyerW. Cuando buscamos el de Sawyer nos da el indice de los dos         vecindarios, asi que nos quedamos con el primero.
     if (length(index_vecindario)>1){
       index_vecindario = index_vecindario[1]
     }
     year_a_imputar = vecindario_agrupado[index_vecindario,2]
-    
     na.rm=TRUE
     year_corregido<-c(year_corregido,year_a_imputar)
-  }
-  else {
+  }else {
     year_corregido<-c(year_corregido,vecindario_precioGaraje$GarageYrBlt[j])
     next 
   }
@@ -555,12 +551,17 @@ length(year_corregido)
 
 #actualizamos la columna en el dataset
 train["GarageYrBlt"]<-year_corregido
-train$GarageYrBlt
+```
 
+```{r echo=FALSE,message=FALSE}
+#train$GarageYrBlt
+```
 
+```{r}
 vecindario_agrupado2 <- vecindario_precioGaraje %>% 
     group_by(Neighborhood) %>% 
     summarise(mean_data = round(mean(GarageYrBlt,na.rm=TRUE),0))
+
 summary(vecindario_agrupado2)
 
 ```
@@ -573,13 +574,16 @@ Ahora comenzaremos con el análisis univariante de los datos del dataset. Empeza
 
 
 ```{r}
+
 train %>%  dplyr::select(var_nominales)  %>% plot_bar()
+
 ```
 
 A la vista de estos diagramas, observamos lo siguiente:
-      * Existe una gran cantidad de variables que tienen una varianza muy reducida, tales como Street, Alley, LandContour, Condition1, Condition2, RoofStyle, RoofMtl, Heating, GarageType, SaleCondition. Estas variables pueden ser problemáticas al realizar el proceso de regresión lineal para el que este tipo de varialbes puede ser problemático, por no contar que para estos modelos este tipo de variables tienen muy poco poder predictivo.
+
+* Existe una gran cantidad de variables que tienen una varianza muy reducida, tales como Street, Alley, LandContour, Condition1, Condition2, RoofStyle, RoofMtl, Heating, GarageType, SaleCondition. Estas variables pueden ser problemáticas al realizar el proceso de regresión lineal para el que este tipo de varialbes puede ser problemático, por no contar que para estos modelos este tipo de variables tienen muy poco poder predictivo.
     
-    El siguiente código detectara las variables que tienen baja varianza e intentara eliminar todas aquellas que no sean significativas en una regresión de ella con la variable salePrice :
+El siguiente código detectara las variables que tienen baja varianza e intentara eliminar todas aquellas que no sean significativas en una regresión de ella con la variable salePrice :
 
 ```{r}
 
@@ -726,7 +730,6 @@ variablesSkewnessAlto <- listasVariablesSkewness[abs(listasVariablesSkewness) > 
 
 Ahora procedermos a realizar el análisis vivariante de nuestros datos. Empezaremos con analizar los coeficientes de correlación entre las distintas variables. El siguiente diagrama intenta dibujar un mapa de calor de dichas correlaciones para las variables contínuas, pero debido a la gran cantidad de varibles en dicho diagrama no se puede visualizar nada con claridad:
 
-
 ```{r}
 
 splitDataset <- split_columns(train, binary_as_factor = FALSE)
@@ -744,24 +747,26 @@ rplot(corrmatrix, legend = TRUE, shape = 16,print_cor = TRUE) +theme(axis.text.x
 ```
 
 Con esta matriz se observan lo siguiente:
-      * La mayor parte de las variables representan una correlación positiva con el precio de la vivienda y entre ellas. Eso es normal debido a que muchas representan cantidades (pies cuadrados en las distintas zonas en las que se descompone las estancias de la vivienda, número y tamaño de cada planta, tamaño de garage y sótanos, etc. ). Evidentemente, cuandos mayores son estos números, normalmente mayor será el valor de la vivienda.
-      * Las variables 1stFlrSF y TotalBsmtSF estan fuertemente correladas, habría que quitar una de ellas en el modelo (es normal que haya una correlacion entre la superficie total del sótano y la de la primera planta)
-      * Existen correlaciones moderadas entre las variables GrLivArea y 1stFlrSF y 2ndFlrSF, no obstante un análisis más detentenido nos muestra que la suma de las siguientes variables tienen correlacion unidad, lo cuál es un punto a favor en la consistencia de los datos de estas variables en el dataset:
+
+* La mayor parte de las variables representan una correlación positiva con el precio de la vivienda y entre ellas. Eso es normal debido a que muchas representan cantidades (pies cuadrados en las distintas zonas en las que se descompone las estancias de la vivienda, número y tamaño de cada planta, tamaño de garage y sótanos, etc. ). Evidentemente, cuandos mayores son estos números, normalmente mayor será el valor de la vivienda.
+
+* Las variables 1stFlrSF y TotalBsmtSF estan fuertemente correladas, habría que quitar una de ellas en el modelo (es normal que haya una correlacion entre la superficie total del sótano y la de la primera planta)
+
+* Existen correlaciones moderadas entre las variables GrLivArea y 1stFlrSF y 2ndFlrSF, no obstante un análisis más detentenido nos muestra que la suma de las siguientes variables tienen correlacion unidad, lo cuál es un punto a favor en la consistencia de los datos de estas variables en el dataset:
 
 ```{r}
 cor(train$GrLivArea, (train$`1stFlrSF` + train$`2ndFlrSF` + train$LowQualFinSF))
 ```
 
- Esto es lógico debido a que la suma de las superficies habitables de la primera y segunda planta mas la superficie de "baja calidad" tienen que coicidir con la superficie total habitable sin contar los sótanos. Es por ello que estas variables o hay que transformarlas para evitar este caso de correlación perfecta o bien eliminar del modelo alguna de ellas. La decisión se tomará mas adelante.
+Esto es lógico debido a que la suma de las superficies habitables de la primera y segunda planta mas la superficie de "baja calidad" tienen que coicidir con la superficie total habitable sin contar los sótanos. Es por ello que estas variables o hay que transformarlas para evitar este caso de correlación perfecta o bien eliminar del modelo alguna de ellas. La decisión se tomará mas adelante.
       
-  A continuación mostraremos un tipo de gráfica que muestra de forma más visual la anterior matriz de correlación. En ella cuando más cerca están unos puntos de otros existe una mayor similitud entre las distintas variables. Cada una de ellas está a su vez enlazada con una "banda" de color azul o rojo que cuantifica el grado de correlación entre las variables. En ella ya vemos que la variable objetivo de estudio, el precio de venta de la casa, está muy influenciada por todas aquellas variables continuas que cuantifican la superficie en la que se dividen las distintas parcelas de la propiedad (habitaciones, garage, porche, sótano, etc.). 
-
+A continuación mostraremos un tipo de gráfica que muestra de forma más visual la anterior matriz de correlación. En ella cuando más cerca están unos puntos de otros existe una mayor similitud entre las distintas variables. Cada una de ellas está a su vez enlazada con una "banda" de color azul o rojo que cuantifica el grado de correlación entre las variables. En ella ya vemos que la variable objetivo de estudio, el precio de venta de la casa, está muy influenciada por todas aquellas variables continuas que cuantifican la superficie en la que se dividen las distintas parcelas de la propiedad (habitaciones, garage, porche, sótano, etc.). 
 
 ```{r}
 network_plot(corrmatrix)
 ``` 
 
-  Ahora proseguiremos el análisis con las variables discretas. Como antes, generaremos una matriz de correlación y 
+Ahora proseguiremos el análisis con las variables discretas. Como antes, generaremos una matriz de correlación y 
 
 ```{r}
 corrmatrix2 <-corrr::correlate(na.omit(train %>% dplyr::select(var_discretas)))
@@ -771,9 +776,9 @@ rplot(corrmatrix2, legend = TRUE, shape = 16,print_cor = TRUE)+theme(axis.text.x
 network_plot(corrmatrix2)
 ```
 
- * Existe una fuerte correlación entre las variables GarageYrBlt y YearBuilt y YearRemodAdd, con ello podemos quitarnos la variable GarageYrBlt.
+* Existe una fuerte correlación entre las variables GarageYrBlt y YearBuilt y YearRemodAdd, con ello podemos quitarnos la variable GarageYrBlt.
 
-   Ahora intentaremos hacer este mismo análisis agrupando tanto variables contínuas como discretas, El resultado es el siguiente:
+Ahora intentaremos hacer este mismo análisis agrupando tanto variables contínuas como discretas, El resultado es el siguiente:
 
 ```{r}
 corrmatrix3 <-corrr::correlate(na.omit(train %>% dplyr::select(var_continuas_discretas)))
@@ -781,12 +786,13 @@ rplot(corrmatrix3, legend = TRUE, shape = 16,print_cor = TRUE)+theme(axis.text.x
 network_plot(corrmatrix3)
 ```
 
-  Aqui Observamos una correlación muy fuerte entre las variables GarageCars y GarageArea, con lo que nos podemos quitar la variable GarageCars.Es lógico pensar que el número de coches que caben en una plaza de garage dependa de la superficie de ésta.
-   *  Existe una correlacion muy fuerte también entre las variables GrLiveArea y TotRmsAbvGrd (total de habitaciones), con lo que podemos quitar esta última del análisis al parecer más sencilla de entender la primera de las variables.
-   *  Hay una fuerte correlación entre las variables YearRemodAdd y las variables YearBuild y GarageYrBuild. Esto indica que en muchas de ellas el año en que se construyó el garage coincide con el año en que se contruyó la casa. En el caso de la variable YearRemodAdd parece que se ha hecho coincidir con el año de construcción si la casa no ha sufrido reformas.
-   
-   La siguiente función confirmará nuestras sospechas, buscando variables con fuertes correlaciones entre ellas:
+Aqui Observamos una correlación muy fuerte entre las variables GarageCars y GarageArea, con lo que nos podemos quitar la variable GarageCars.Es lógico pensar que el número de coches que caben en una plaza de garage dependa de la superficie de ésta.
 
+* Existe una correlacion muy fuerte también entre las variables GrLiveArea y TotRmsAbvGrd (total de habitaciones), con lo que podemos quitar esta última del análisis al parecer más sencilla de entender la primera de las variables.
+
+* Hay una fuerte correlación entre las variables YearRemodAdd y las variables YearBuild y GarageYrBuild. Esto indica que en muchas de ellas el año en que se construyó el garage coincide con el año en que se contruyó la casa. En el caso de la variable YearRemodAdd parece que se ha hecho coincidir con el año de construcción si la casa no ha sufrido reformas.
+   
+La siguiente función confirmará nuestras sospechas, buscando variables con fuertes correlaciones entre ellas:
 
 ```{r}
 
@@ -795,13 +801,11 @@ correlacionesProblematicas
 
 ```
 
-    Comprobamos que, efectivamente, las variables antes comentadas están entre las que aparecen en el listado.
+Comprobamos que, efectivamente, las variables antes comentadas están entre las que aparecen en el listado.
 
-    Ahora intentaremos mostrar en un gráfico de barras el grado de correlación entre las variables anteriormente analizadas y la variable objeto de nuestro análisis:
+Ahora intentaremos mostrar en un gráfico de barras el grado de correlación entre las variables anteriormente analizadas y la variable objeto de nuestro análisis:
     
 ```{r}
-
-
 
 rplot(corrmatrix3, legend = TRUE, shape = 16,print_cor = TRUE)+theme(axis.text.x = element_text(angle = 90))
 
@@ -815,25 +819,28 @@ correlacionesSalesPrice%>%  arrange(SalePrice) %>%  ggplot(aes(x=rowname ,y=Sale
 
 ```
 
-    En este diagrama se muestra más claramente lo que ya se ha comentado con anterioridad: casi todas las variables tienen correlaciones positivas con el precio excepto unas pocas (sería interesante el averiguar por qué, ya que serían factores que influyen negativamente en el precio de una vivienda). Además las variables con mayores correlaciones tiene que ver con la superficie habitable de la casa y la superficie de la primera planta (lo que muestra que la mayoría de las casas tienen una única planta. El tener una segunda planta influye moderadamente en el precio de la vivienda). También hay correlaciones moderadas entre las características del garage, el año de construcción, la superficie del sótano, etc. Por lo tanto, estas variables deberían entrar significativamente en el modelo de regresión que generemos en esta práctica.
+En este diagrama se muestra más claramente lo que ya se ha comentado con anterioridad: casi todas las variables tienen correlaciones positivas con el precio excepto unas pocas (sería interesante el averiguar por qué, ya que serían factores que influyen negativamente en el precio de una vivienda). Además las variables con mayores correlaciones tiene que ver con la superficie habitable de la casa y la superficie de la primera planta (lo que muestra que la mayoría de las casas tienen una única planta. El tener una segunda planta influye moderadamente en el precio de la vivienda). También hay correlaciones moderadas entre las características del garage, el año de construcción, la superficie del sótano, etc. Por lo tanto, estas variables deberían entrar significativamente en el modelo de regresión que generemos en esta práctica.
     
-    Ahora realizaremos unos cuantos diagramas de dispersión entre las variables contínuas y el precio de la vivienda para ver si existen relaciones lineales entre dichas variables (importante para saber si el modelo de regresión lineal es el más adecuado para el problema que tenemos en esta práctica):
+Ahora realizaremos unos cuantos diagramas de dispersión entre las variables contínuas y el precio de la vivienda para ver si existen relaciones lineales entre dichas variables (importante para saber si el modelo de regresión lineal es el más adecuado para el problema que tenemos en esta práctica):
 
 ```{r}
 
 na.omit(train %>% dplyr::select(var_continuas)) %>% plot_scatterplot( by = "SalePrice", sampled_rows = 1000L) 
 
+```
+
+```{r echo=FALSE}
 #geom_smooth(method=lm, se=FALSE, fullrange=TRUE)
 
 ```
 
-   Observamos que sí que existen ciertas relaciones apróximadas pero con algunas anomalías que comentamos a continuación:
+Observamos que sí que existen ciertas relaciones apróximadas pero con algunas anomalías que comentamos a continuación:
   
-  * Existen muchos valores concentrados en el valor cero para muchas de las variables (es normal, por ejemplo, que haya muchas casas que no tengan segundo piso, por lo que para ellas la variable que contabiliza su superficie sea cero).
-  * Se ven numerosos "outliers" en muchas variables, lo que es indicativo de casas con características especiales, tanto a la baja como al alza. En particular, la variable "LotArea" es un indicativo de casas de lujo para valores extremadamente altos de la misma (en su gráfica se muestran claramente estos "outliers"). Otra de las variables que muestran casas fuera de lo común es "3SsnPorch", en donde vemos que muy pocas casas la tienen informada con un valor mayor que cero.
+* Existen muchos valores concentrados en el valor cero para muchas de las variables (es normal, por ejemplo, que haya muchas casas que no tengan segundo piso, por lo que para ellas la variable que contabiliza su superficie sea cero).
 
+* Se ven numerosos "outliers" en muchas variables, lo que es indicativo de casas con características especiales, tanto a la baja como al alza. En particular, la variable "LotArea" es un indicativo de casas de lujo para valores extremadamente altos de la misma (en su gráfica se muestran claramente estos "outliers"). Otra de las variables que muestran casas fuera de lo común es "3SsnPorch", en donde vemos que muy pocas casas la tienen informada con un valor mayor que cero.
 
- En cuanto a la detección de Outliers, como se ha indicado con anterioridad, existen indicios más que suficientes para inferir que, efectivamente, en este dataset existe más de una casa que podría crear problemas en el modelo de regresión lineal. Para detectarlos y almacenarlos en una lista para su posterior tratamiento, ejecutaremos el siguiente código, que además mostrará un conjunto de diagramas de caja con las variables continuas del dataset:
+En cuanto a la detección de Outliers, como se ha indicado con anterioridad, existen indicios más que suficientes para inferir que, efectivamente, en este dataset existe más de una casa que podría crear problemas en el modelo de regresión lineal. Para detectarlos y almacenarlos en una lista para su posterior tratamiento, ejecutaremos el siguiente código, que además mostrará un conjunto de diagramas de caja con las variables continuas del dataset:
 
 ```{r}
 library(EnvStats)
@@ -851,7 +858,9 @@ for(i in colnames(dataset_var_continuas)) {
    iterator<- iterator +1
 }
 
+```
 
+```{r echo=FALSE}
 #library(gridExtra)
 #n <- length(listaBoxPlots)
 #nCol <- floor(sqrt(n))
@@ -876,26 +885,29 @@ var_eliminar_correlacion = c('TotRmsAbvGrd','GarageYrBlt','GarageCars')
 
 ```
 
+## Transformaciones de variables
 
-5. Transformaciones de variables cuantitativas (1 punto)
-
-  Ahora procederemos a realizar el procesado de las variables cuantitativas, tanto contínuas como discretas. Lo primero que haremos será contruir 3 nuevas variables como sigue:
-  * TotalSF : será la suma de pies cuadrados entre sótano, primera planta y segunda planta.
-  * Total_Bathrooms: llevará cuenta del número total de cuartos de baño existentes en la casa, contabilizando los baños pequeños con un peso inferior.
-  * Total_porch_SF: llevará cuente del número todal de pies cuadrados existentes en los diferentes porches.
+Ahora procederemos a realizar el procesado de las variables cuantitativas, tanto contínuas como discretas. Lo primero que haremos será contruir 3 nuevas variables como sigue:
+* TotalSF : será la suma de pies cuadrados entre sótano, primera planta y segunda planta.
+* Total_Bathrooms: llevará cuenta del número total de cuartos de baño existentes en la casa, contabilizando los baños pequeños con un peso inferior.
+* Total_porch_SF: llevará cuente del número todal de pies cuadrados existentes en los diferentes porches.
   
-  Evidentemente, estas variables sustituyen en el modemo final a las variables de las que se componen. Para no destruir información, además, en el apartado de procesado de variables cualitativas crearemos nuevas variables facetadas que indiquen si una casa tiene segundo piso y porche, porque no todas las casas tienen estas dos características. Así nos quitamos el problema que vimos en el apartado de análisis exploratorio con numerosos ceros en algunas de estas variables.
+Evidentemente, estas variables sustituyen en el modemo final a las variables de las que se componen. Para no destruir información, además, en el apartado de procesado de variables cualitativas crearemos nuevas variables facetadas que indiquen si una casa tiene segundo piso y porche, porque no todas las casas tienen estas dos características. Así nos quitamos el problema que vimos en el apartado de análisis exploratorio con numerosos ceros en algunas de estas variables.
 
 ```{r}
 
 train <- train %>% dplyr::mutate( TotalSF = TotalBsmtSF + `1stFlrSF` + `2ndFlrSF`  )
- train <- train %>% dplyr::mutate( Total_Bathrooms = FullBath + 0.5*HalfBath +  BsmtFullBath + 0.5*BsmtHalfBath )
- train <- train %>% dplyr::mutate( Total_porch_SF = OpenPorchSF +`3SsnPorch` +  EnclosedPorch + ScreenPorch + WoodDeckSF )
- #train <- train %>% dplyr::mutate( TotalSqrFootage = BsmtFinSF1 + BsmtFinSF2 + !!as.symbol(firsrtFlrSF) + #!!as.symbol(secondFlrSF)  )
+train <- train %>% dplyr::mutate( Total_Bathrooms = FullBath + 0.5*HalfBath +  BsmtFullBath + 0.5*BsmtHalfBath )
+train <- train %>% dplyr::mutate( Total_porch_SF = OpenPorchSF +`3SsnPorch` +  EnclosedPorch + ScreenPorch + WoodDeckSF )
+
+```
+
+```{r echo=FALSE}
+#train <- train %>% dplyr::mutate( TotalSqrFootage = BsmtFinSF1 + BsmtFinSF2 + !!as.symbol(firsrtFlrSF) + #!!as.symbol(secondFlrSF)  )
  
 test <- test %>% dplyr::mutate( TotalSF = TotalBsmtSF + `1stFlrSF` + `2ndFlrSF`  )
- test <- test %>% dplyr::mutate( Total_Bathrooms = FullBath + 0.5*HalfBath +  BsmtFullBath + 0.5*BsmtHalfBath )
- test <- test %>% dplyr::mutate( Total_porch_SF = OpenPorchSF +`3SsnPorch` +  EnclosedPorch + ScreenPorch + WoodDeckSF ) 
+test <- test %>% dplyr::mutate( Total_Bathrooms = FullBath + 0.5*HalfBath +  BsmtFullBath + 0.5*BsmtHalfBath )
+test <- test %>% dplyr::mutate( Total_porch_SF = OpenPorchSF +`3SsnPorch` +  EnclosedPorch + ScreenPorch + WoodDeckSF ) 
 #test <- test %>% dplyr::mutate( TotalSqrFootage = BsmtFinSF1 + BsmtFinSF2 + !!as.symbol(firsrtFlrSF) + #!!as.symbol(secondFlrSF)  )
  
 # esta variable tiene los pies cuadrados "oficiales" del interior de la casa
@@ -911,14 +923,14 @@ var_creadas_transformacion = c( 'TotalSF','Total_Bathrooms','Total_porch_SF','To
  
 ```
 
-  Otro procesamiento que realizaremos sobre estas variables es cuantificar las variables que portan los años de reforma y construcción de la casa en rangos de 30 años, para simplificar el modelo final generado. Esta cuantificación transformará estas variables en variables categóricas. El código que realiza la transformación es el siguiente:
+Otro procesamiento que realizaremos sobre estas variables es cuantificar las variables que portan los años de reforma y construcción de la casa en rangos de 30 años, para simplificar el modelo final generado. Esta cuantificación transformará estas variables en variables categóricas. El código que realiza la transformación es el siguiente:
 
 ```{r}
 # YearBuilt: discretizamos la variable en tramos
 # YearRemodAdd: discretizamos la variable en tramos
 train$YearBuilt <- cut(train$YearBuilt, 
                    breaks=c(-Inf, 1930, 1960, 1990,Inf), 
-                   labels=c("1900_1930","1930_1960","1960_1990","1990_"))   
+                   labels=c("1900_1930","1930_1960","1960_1990","1990_"))
 test$YearBuilt <- cut(test$YearBuilt, 
                    breaks=c(-Inf, 1930, 1960, 1990,Inf), 
                    labels=c("1900_1930","1930_1960","1960_1990","1990_"))   
@@ -1238,9 +1250,9 @@ preProcValuesValidation <- preProcess(validation_sin_na  %>% dplyr::select(-Over
 
 ```
 
-7. Selección de variables (1 punto)
+## Selección de variables
 
-  Teniendo en cuanto todo lo dicho en los anteriores apartados, las variables con las que al final nos quedaremos para el cálculo del modelo final serán las siguientes:
+Teniendo en cuanto todo lo dicho en los anteriores apartados, las variables con las que al final nos quedaremos para el cálculo del modelo final serán las siguientes:
 
 ```{r}
 
@@ -1253,6 +1265,7 @@ var_modelo_with_SalePrice = c(var_modelo,'SalePrice')
 Ahora eliminaremos la columna Id de los datasets para que no intervenga en el modelo y lo recalcularemos con las variables anteriormente comentadas:
 
 ```{r}
+
 train_sin_na <- train %>%  na.omit() %>% dplyr::select(-Id)
 test_sin_na <- test %>%  na.omit() %>% dplyr::select(-Id)
 validation_sin_na <- validation %>%  na.omit() %>% dplyr::select(-Id)
@@ -1265,24 +1278,29 @@ modelRegressionTotal <- lm(reformulate(termlabels = var_modelo, response = 'Sale
 
 cat('El modelo total usa', length(modelRegressionTotal$coefficients), 'variables ')
 
+```
 
-
+```{r}
 #summary( modelRegressionTotal )
 #predict(modelRegressionTotal,testTransformed)
 
 ```
 
- A continuación, intentaremos reducir la elevada dimensionalidad del modelo utilizando la libreria Caret y haciendo una regresión de tipo "Step Backward selection", es decir, utilizando el algoritmo que partiendo de todas las variables del modelo vaya creando nuevos modelos quitando cada vez una de las variables que contengan el estimador menos influyente en el modelo hasta converger. Para ello primero relalizamos la codificacion de las varibales categóricas en variables de tipo "dummy":
+A continuación, intentaremos reducir la elevada dimensionalidad del modelo utilizando la libreria Caret y haciendo una regresión de tipo "Step Backward selection", es decir, utilizando el algoritmo que partiendo de todas las variables del modelo vaya creando nuevos modelos quitando cada vez una de las variables que contengan el estimador menos influyente en el modelo hasta converger. Para ello primero relalizamos la codificacion de las varibales categóricas en variables de tipo "dummy":
 
 ```{r}
+
 dummiesTrain <- dummyVars(reformulate(termlabels = var_modelo_with_SalePrice ),fullRank = T, data = data.frame(trainTransformed),sep='.')
+
 dummiesTest <- dummyVars(reformulate(termlabels = var_modelo_with_SalePrice ),fullRank = T, data = data.frame(testTransformed),sep='.')
+
 trainTransformedDummies <- predict(dummiesTrain, newdata = trainTransformed)
+
 testTransformedDummies <- predict(dummiesTest, newdata = testTransformed)
 
 ```
 
-  El siguiente código teóricamente realiza esa funcionalidad, pero hemos tenido problemas al ejecutarlo debido a que codifica los valores de variables categóricas con espacios de distinta forma que el algoritmo "predict" utilizado en el anterior apartado. Dejamos el código en la práctica para que quede constancia de que por lo menos lo hemos intentado, pero ha dado un montón de problemas y no termina de funcinar correctamente por razones desconocidas:
+El siguiente código teóricamente realiza esa funcionalidad, pero hemos tenido problemas al ejecutarlo debido a que codifica los valores de variables categóricas con espacios de distinta forma que el algoritmo "predict" utilizado en el anterior apartado. Dejamos el código en la práctica para que quede constancia de que por lo menos lo hemos intentado, pero ha dado un montón de problemas y no termina de funcinar correctamente por razones desconocidas:
 
 ```{r}
 #set.seed(123)
@@ -1307,10 +1325,16 @@ testTransformedDummies <- predict(dummiesTest, newdata = testTransformed)
 Debido al fracaso del anterior modelo, lo intentaremos con una librería distinta que parece que funciona mejor. No obstante, en la ejecución de la misma nos indica que en la selección de variables realizadas siguen existiendo variables correladas.
 
 ```{r}
-library('olsrr')
+
 modelStepForward <- ols_step_forward_p(modelRegressionTotal)
+
 length(modelStepForward$predictors)
+
 cat('El modelo stepforward usa', length(modelStepForward$model$coefficients), 'variables ')
+
+```
+
+```{r}
 #plot(modelStepForward)
 #ols_plot_resid_fit(modelStepForward$model)
 ```
@@ -1319,16 +1343,16 @@ cat('El modelo stepforward usa', length(modelStepForward$model$coefficients), 'v
 
 ```{r}
 
-gridLamdas <- expand.grid(alpha = 1, lambda = seq(0.001,0.1,by = 0.0005))
-varControl <-caret::trainControl(method="cv", number=10)
-lasso_mod <- train(reformulate(termlabels = var_modelo, response = 'SalePrice'), data = data.frame(trainTransformed), method='glmnet', trControl= varControl, tuneGrid=gridLamdas) 
-#lasso_mod$bestTune
-#min(lasso_mod$results$RMSE)
-lassoVarImp <- varImp(lasso_mod,scale=F)
-lassoImportance <- lassoVarImp$importance
-varsSelected <- length(which(lassoImportance$Overall!=0))
-varsNotSelected <- length(which(lassoImportance$Overall==0))
-cat(' El modelo de lasso usa', varsSelected, 'variables en el modelo, y rechazo ', varsNotSelected, 'variables.')
+#gridLamdas <- expand.grid(alpha = 1, lambda = seq(0.001,0.1,by = 0.0005))
+#varControl <-caret::trainControl(method="cv", number=10)
+#lasso_mod <- caret::train(reformulate(termlabels = var_modelo, response = 'SalePrice'), data = data.frame(trainTransformed), method='glmnet', trControl= varControl, tuneGrid=gridLamdas) 
+#----------#lasso_mod$bestTune
+#----------#min(lasso_mod$results$RMSE)
+#lassoVarImp <- varImp(lasso_mod,scale=F)
+#lassoImportance <- lassoVarImp$importance
+#varsSelected <- length(which(lassoImportance$Overall!=0))
+#varsNotSelected <- length(which(lassoImportance$Overall==0))
+#cat(' El modelo de lasso usa', varsSelected, 'variables en el modelo, y rechazo ', varsNotSelected, 'variables.')
 
 
 #lm_formula_2 <- as.formula(str_replace(paste("SalePrice ~ ",paste(predictors(lasso_mod) , #collapse=" + "), sep = " "),'&','.'))
