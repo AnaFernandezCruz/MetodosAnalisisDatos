@@ -2,7 +2,9 @@
 title: "Métodos de Análisis de Datos"
 author: "Ana Fernández Cruz, Jesús Gallego Olivas y Miguel Ángel Sánchez Alcázar."
 date: "19 de Diciembre de 2019"
-output: html_document
+output: 
+  html_document:
+    code_folding: hide
 ---
 
 ```{r load_libraries, message=FALSE, warning=FALSE, echo=FALSE}
@@ -40,7 +42,7 @@ split_dataframe <- function(df, per){
 
 ## Objectivos
 
-En este informe se detalla el estudio realizado sobre un dataset que recoge información relevante de las viviendas en Boston. El estudio, intentara mediante un modelo de regresión lineal múltiple, **predecir el valor de la vivienda**.
+En este informe se detalla el estudio realizado sobre un dataset que recoge información relevante de las viviendas en la ciudad de Agnes, en Iowa (Estados Unidos).  El estudio, intentara mediante un modelo de regresión lineal múltiple, **predecir el valor de la vivienda** en función de un gran número de variables (tanto continuas como categóricas) que describen prácticamente todos los aspectos que .
 
 Para el control de versiones utilizaremos github. El repositorio se encuentra en https://github.com/AnaFernandezCruz/MetodosAnalisisDatos .
 
@@ -214,13 +216,13 @@ Las variables que nos encontraremos en el dataset son las siguientes:
 **MSSubClass:** La clase de construcción
 **MSZoning:** La clasificación general de zonificación
 **LotFrontage:** Pies lineales de calle conectados a la propiedad
-**LotArea:** Tamaño del lote en pies cuadrados
-**Street:** Tipo de acceso por carretera
-**Alley:** Tipo de acceso al callejón
+**LotArea:** Tamaño del solar donde se asienta la casa en pies cuadrados
+**Street:** Tipo de acceso por carretera a la propiedad
+**Alley:** Tipo de acceso por callejón a la propiedad
 **LotShape:** Forma general de propiedad
-**LandContour:** Llanura de la propiedad
-**Utilities:**  Tipo de utilidades disponibles
-**LotConfig:** Configuración del lote
+**LandContour:** Nivelado del terreno en el que se asienta propiedad
+**Utilities:**  Tipo de utilidades(servicios) disponibles
+**LotConfig:** Tipo de solar donde se asienta la propiead
 **LandSlope:** Pendiente de la propiedad
 **Neighborhood:** Ubicaciones físicas dentro de los límites de la ciudad de Ames
 **Condition1:** Proximidad a la carretera principal o ferrocarril
@@ -244,9 +246,9 @@ Las variables que nos encontraremos en el dataset son las siguientes:
 **BsmtCond:** Estado general del sótano
 **BsmtExposure:** Paredes de sótano a nivel de jardín o de salida
 **BsmtFinType1:** Calidad del área terminada del sótano
-**BsmtFinSF1:** Tipo 1 terminado pies cuadrados
+**BsmtFinSF1:** Tipo 1 terminado pies cuadrados del sótano
 **BsmtFinType2:** Calidad de la segunda área terminada (si está presente)
-**BsmtFinSF2:** Pies cuadrados terminados tipo 2
+**BsmtFinSF2:** Pies cuadrados terminados tipo 2 del sótano
 **BsmtUnfSF:** Pies cuadrados inacabados de área de sótano
 **TotalBsmtSF:** Pies cuadrados totales del área del sótano
 **Heating:** Tipo de calefacción
@@ -268,10 +270,10 @@ Las variables que nos encontraremos en el dataset son las siguientes:
 **Functional:** Calificación de funcionalidad doméstica 
 **Fireplaces:** Número de chimeneas
 **FireplaceQu:** Calidad de chimenea
-**GarageType:** Ubicación del garaje
+**GarageType:** Ubicación del garaje dentro de la propiedad
 **GarageYrBlt:** Año en que se construyó el garaje
 **GarageFinish:** Acabado interior del garaje
-**GarageCars:** Tamaño del garaje en la capacidad del automóvil
+**GarageCars:** Tamaño del garaje utilizable por automóviles
 **GarageArea:** Tamaño del garaje en pies cuadrados
 **GarageQual:** Calidad de garaje
 **GarageCond:** Condición del garaje
@@ -325,7 +327,7 @@ var_creadas_transformacion = c()
 
 ```
 
-A continuación realizaremos un pequeño informe mostrando algunas características de los datos que contienen el dataset:
+
 
 ```{r message=FALSE, warning=FALSE}
 
@@ -335,7 +337,7 @@ variablesReporte <- list(
   mean = mean
 )
 #skim_with(numeric = variablesReporte, append = FALSE) 
-skim(train)  %>% pander()
+#skim(train)  %>% pander()
 
 
 ```
@@ -637,6 +639,34 @@ Los comentarios que se pueden hacer en este caso son los siguientes:
 
 * La variable "Id" es una especie de clave primária organizadora de las filas y hay que eliminarla en los procesos de regresión.
 
+  Nos centraremos ahora en mostrar con mas detalle los histograma y diagramas de densidad de las variables que describen el tamaño en superficie de cada parte en la que se compone una casa: 
+
+```{r} 
+library(gridExtra)
+s1 <- ggplot(data= train, aes(x=GrLivArea)) +
+        geom_density() + labs(x='Pies cuadrados habitables')
+s2 <- ggplot(data=train, aes(x=as.factor(TotRmsAbvGrd))) +
+        geom_histogram(stat='count') + labs(x='Numero de habitaciones por encima del sótano')
+s3 <- ggplot(data= train, aes(x=`1stFlrSF`)) +
+        geom_density() + labs(x='Tamaño en Pies cuadrados de la primera planta')
+s4 <- ggplot(data= train, aes(x=`2ndFlrSF`)) +
+        geom_density() + labs(x='Tamaño en Pies cuadrado de la segunda planta')
+s5 <- ggplot(data= train, aes(x=TotalBsmtSF)) +
+        geom_density() + labs(x='Tamaño en metros cuadrados del sótano')
+s6 <- ggplot(data= train[train$LotArea<100000,], aes(x=LotArea)) +
+        geom_density() + labs(x='Tamaño en metros cuadrados del jardin')
+#s7 <- ggplot(data= train, aes(x=LotFrontage)) +
+#        geom_density() + labs(x='Tamaño en metros cuadrados del jardin frontal')
+s8 <- ggplot(data= train, aes(x=LowQualFinSF)) +
+        geom_histogram() + labs(x='Tamaño de espacio no habitale 1ª y 2ª planta')
+
+#layout <- matrix(c(1,2,5,3,4,8,6,7),4,2,byrow=TRUE)
+grid.arrange(s1, s2, s3, s4, s5, s6, s8)
+```
+
+ Observamos que la distribución que siguen se aparta en general de la normalidad y tienen una forma similar al propio histograma del precio de la vivienda. La gráfica que muestra el tamaño en pies cuadrados de la segunda es bimodal, lo que indica que existen 2 tipos de casas diferenciadas (poblaciones distintas).
+
+
 Ahora realizaremos los mismos gráficos para las variables discretas:
 
 ```{r}
@@ -653,10 +683,45 @@ train %>%  dplyr::select(var_discretas) %>% plot_histogram()
 train %>%  dplyr::select(var_nominales) %>% plot_bar(nrow =2,ncol=2)
 ``` 
  
- Observamos que hay una variable nominal que tiene una gran cantidad de valores. Esa variable (denominada "Neighbourhoud") parece especialmente importante debido a que codifica el barrio al que pertenece la casa puesta a la venta, y parece que será importante en el modelo final, por la evidente correlación que habrá entre los precios de la vivienda y la zona en la que se encuentran. No obstante, es una variable con una gran cantidad de valores distintos, lo cuál podría ser un problema para el modelo de regresión lineal.
+ Observamos que hay una variable nominal que tiene una gran cantidad de valores. Esa variable (denominada "Neighbourhoud") parece especialmente importante debido a que codifica el barrio al que pertenece la casa puesta a la venta, y parece que será importante en el modelo final, por la evidente correlación que habrá entre los precios de la vivienda y la zona en la que se encuentran. No obstante, es una variable con una gran cantidad de valores distintos, lo cuál podría ser un problema para el modelo de regresión lineal. A continuación realizarmos un par de diagrama de barras mostrando la distribución frente al precio de venta y el número de cassas por vecindario:
+ 
+```{r} 
+library(scales)
+ gr1 <- ggplot(train[!is.na(train$SalePrice),], aes(x=Neighborhood, y=SalePrice)) +
+        geom_bar(stat='summary', fun.y = "median", fill='blue') +
+        theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+        scale_y_continuous(breaks= seq(0, 1800000, by=20000), labels = comma) +
+        geom_label(stat = "count", aes(label = ..count.., y = ..count..), size=3) +
+        geom_hline(yintercept=150000, linetype="dashed", color = "red") 
+
+gr2 <- ggplot(data=train, aes(x=Neighborhood)) +
+        geom_histogram(stat='count')+
+        geom_label(stat = "count", aes(label = ..count.., y = ..count..), size=3)+
+        theme(axis.text.x = element_text(angle = 45, hjust = 1))
+grid.arrange(gr1, gr2)
+``` 
+ 
+  Una posible manera de quitarnos esta molesta variable es discretizándola por un umbral de precio de venta medio en la zona. Podríamos llamar a las dos colecciones "zona cara" y "zona normal". 
+
+ La otra variable categórica que se podría tratar de la misma forma que la anterior es una varible que clasifica a la casa según un cojunto cerrado de valores que a priori no tiene un significado claro para nosotros. Mostramos las mismas gráficas para esta variable para ver si se puede seguir una estrategia similar a la de la anterior variable:
+ 
+```{r} 
+
+ gr1 <- ggplot(train[!is.na(train$SalePrice),], aes(x=MSSubClass, y=SalePrice)) +
+        geom_bar(stat='summary', fun.y = "median", fill='blue') +
+        theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+        scale_y_continuous(breaks= seq(0, 800000, by=50000), labels = comma) +
+        geom_label(stat = "count", aes(label = ..count.., y = ..count..), size=3) +
+        geom_hline(yintercept=150000, linetype="dashed", color = "red") 
+gr2 <- ggplot(data=train, aes(x=MSSubClass)) +
+        geom_histogram(stat='count')+
+        geom_label(stat = "count", aes(label = ..count.., y = ..count..), size=3) +
+        theme(axis.text.x = element_text(angle = 45, hjust = 1))
+grid.arrange(gr1, gr2)
+```  
  
  
-Ahora nos ocuparemos del análisis de la variable que representa la variable dependiente en nuestro modelo, el precio de las casas. En primer lugar dibujaremos su histograma:
+Ahora nos ocuparemos del análisis de la variable dependiente de nuestro modelo, el precio de las casas. En primer lugar dibujaremos su histograma:
 
 ```{r}
 
@@ -761,7 +826,7 @@ cor(train$GrLivArea, (train$`1stFlrSF` + train$`2ndFlrSF` + train$LowQualFinSF))
 network_plot(corrmatrix)
 ``` 
 
-  Ahora proseguiremos el análisis con las variables discretas. Como antes, generaremos una matriz de correlación y 
+  Ahora proseguiremos el análisis con las variables discretas. Como antes, generaremos una matriz de correlación y estudiaremos los resultados:
 
 ```{r}
 corrmatrix2 <-corrr::correlate(na.omit(train %>% dplyr::select(var_discretas)))
@@ -810,7 +875,7 @@ correlacionesSalesPrice <-focus(corrmatrix3,SalePrice)
 correlacionesSalesPrice%>%  arrange(SalePrice) %>%  ggplot(aes(x=rowname ,y=SalePrice,fill=factor(rowname))) +
   geom_bar(position="dodge",stat="identity") + 
   coord_flip() +
-  ggtitle("Strategies for Using Homework Solution and Mini-Lecture Screencasts")
+  ggtitle("Correlacion entre las variables numéricas y el precio de las casas")
 
 
 ```
@@ -838,14 +903,16 @@ na.omit(train %>% dplyr::select(var_continuas)) %>% plot_scatterplot( by = "Sale
 ```{r}
 library(EnvStats)
 listaOutliers <- list()
-listaBoxPlots <- c()
+#listaBoxPlots <- c()
 dataset_var_continuas <- train %>% dplyr::select(var_continuas)
 iterator = 1 
 for(i in colnames(dataset_var_continuas)) {
   outlier_values <- boxplot.stats(dataset_var_continuas[[i]])$out
   boxPlotDibujar <- boxplot(dataset_var_continuas[[i]], main=i, boxwex=0.1)
-  boxPlotDibujar
-  listaBoxPlots <- c(listaBoxPlots,boxPlotDibujar)
+  if(i %in% c('LotArea','1stFlrSF','GrLivArea','PoolArea','TotalBsmtSF')) {
+    boxPlotDibujar
+  }
+  #listaBoxPlots <- c(listaBoxPlots,boxPlotDibujar)
   outliersRosen <- rosnerTest(dataset_var_continuas[[i]], k = 4, warn = F)
   listaOutliers[[iterator]] <- outliersRosen
    iterator<- iterator +1
@@ -907,8 +974,10 @@ validation <- validation %>% dplyr::mutate( Total_porch_SF = OpenPorchSF +`3SsnP
  # esta variable tiene los pies cuadrados finalizados de la casa (tiene en cuenta las variables de sotano acabado y no tiene en cuenta la variable TotalBsmtSF)
  #train_test <- train_test %>% dplyr::mutate( TotalSqrFootage = BsmtFinSF1 + BsmtFinSF2 + TotalBsmtSF+ #!!as.symbol(firsrtFlrSF) + !!as.symbol(secondFlrSF)  ) 
  
-var_creadas_transformacion = c( 'TotalSF','Total_Bathrooms','Total_porch_SF','TotalSqrFootage','hasPool','hasGarage','hasBasement','hasFirePlaces','has2ndFloor')
+var_creadas_transformacion = c( 'TotalSF','Total_Bathrooms','Total_porch_SF','hasPool','hasGarage','hasBasement','hasFirePlaces','has2ndFloor')
  
+train %>%  dplyr::select('TotalSF','Total_Bathrooms','Total_porch_SF') %>% plot_histogram()
+
 ```
 
   Otro procesamiento que realizaremos sobre estas variables es cuantificar las variables que portan los años de reforma y construcción de la casa en rangos de 30 años, para simplificar el modelo final generado. Esta cuantificación transformará estas variables en variables categóricas. El código que realiza la transformación es el siguiente:
@@ -1387,7 +1456,7 @@ cat(' El modelo de lasso usa', varsSelected, 'variables en el modelo, y rechazo 
 
 ```{r}
 
-#regr.eval(valoresPredichosModeloLasso,testTransformed$SalePrice)
+# regr.eval(valoresPredichosModeloLasso,testTransformed$SalePrice)
 
 ```
 
