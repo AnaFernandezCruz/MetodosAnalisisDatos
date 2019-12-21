@@ -340,12 +340,7 @@ variablesReporte <- list(
 #skim_with(numeric = variablesReporte, append = FALSE) 
 #skim(train)  %>% pander()
 ```
->>>>>>> 779065d1c157aaebdbc39a43d1c80e2905f5d405
 
-
-```{r message=FALSE, warning=FALSE}
-skim(train)  %>% pander()
-```
 
 ----------------------------------------------------------------
 
