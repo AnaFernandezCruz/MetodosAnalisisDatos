@@ -10,6 +10,7 @@ output:
 ```{r load_libraries, message=FALSE, warning=FALSE, echo=FALSE}
 
 library(readr)
+library(plyr)
 library(dplyr)
 library(tidyverse)
 library(DataExplorer)
@@ -545,6 +546,7 @@ for(j in 1:length(vecindario_precioGaraje$GarageYrBlt)) {
   }
 }
 
+length(year_corregido)
 year_corregido<- unlist(year_corregido)
 length(year_corregido)
 
@@ -684,7 +686,7 @@ train %>%  dplyr::select(var_discretas) %>% plot_histogram()
 train %>%  dplyr::select(var_nominales) %>% plot_bar(nrow =2,ncol=2)
 ``` 
  
- Observamos que hay una variable nominal que tiene una gran cantidad de valores. Esa variable (denominada "Neighbourhoud") parece especialmente importante debido a que codifica el barrio al que pertenece la casa puesta a la venta, y parece que será importante en el modelo final, por la evidente correlación que habrá entre los precios de la vivienda y la zona en la que se encuentran. No obstante, es una variable con una gran cantidad de valores distintos, lo cuál podría ser un problema para el modelo de regresión lineal. A continuación realizarmos un par de diagrama de barras mostrando la distribución frente al precio de venta y el número de cassas por vecindario:
+ Observamos que hay una variable nominal que tiene una gran cantidad de valores. Esa variable (denominada "Neighbourhoud") parece especialmente importante debido a que codifica el barrio al que pertenece la casa puesta a la venta, y parece que será importante en el modelo final, por la evidente correlación que habrá entre los precios de la vivienda y la zona en la que se encuentran. No obstante, es una variable con una gran cantidad de valores distintos, lo cuál podría ser un problema para el modelo de regresión lineal. A continuación realizarmos un par de diagrama de barras mostrando la distribución frente al precio de venta y el número de casas por vecindario:
  
 ```{r} 
 library(scales)
@@ -912,6 +914,7 @@ listaOutliers <- list()
 #listaBoxPlots <- c()
 dataset_var_continuas <- train %>% dplyr::select(var_continuas)
 iterator = 1 
+listaPosOutliers <- c()
 for(i in colnames(dataset_var_continuas)) {
   outlier_values <- boxplot.stats(dataset_var_continuas[[i]])$out
   boxPlotDibujar <- boxplot(dataset_var_continuas[[i]], main=i, boxwex=0.1)
@@ -919,10 +922,15 @@ for(i in colnames(dataset_var_continuas)) {
     boxPlotDibujar
   }
   #listaBoxPlots <- c(listaBoxPlots,boxPlotDibujar)
-  outliersRosen <- rosnerTest(dataset_var_continuas[[i]], k = 4, warn = F)
+  outliersRosen <- rosnerTest(dataset_var_continuas[[i]], k = 6, warn = F)
   listaOutliers[[iterator]] <- outliersRosen
    iterator<- iterator +1
+    if(i %in% c('LotArea','1stFlrSF','GrLivArea','PoolArea','TotalBsmtSF','SalePrice'))     {
+      listaPosOutliers <- c(listaPosOutliers,outliersRosen$all.stats$Obs.Num)
+    }
 }
+
+listaPosOutliers <- unique(listaPosOutliers)
 
 ```
 
@@ -1017,6 +1025,7 @@ validation$YearRemodAdd <- cut(validation$YearRemodAdd,
                    breaks=c(-Inf, 1930, 1960, 1990,Inf), 
                    labels=c("1900_1930","1930_1960","1960_1990","1990_"))   
 
+
 ```
 
   Continuaremos este apartado realizando la transformación logarítmica tanto de la variable SalePrice como de las variables con alto grado de asimetría. Debido a que algunas de estas variables tienen valores nulos, sumaremos uno a la funció logarítmica para evitar errores en el cálculo del logaritmo.  El siguiente código realiza estas transformaciones:
@@ -1102,7 +1111,7 @@ for(i in 1:ncol(validation)){
     
 }
 
-
+train %>%  dplyr::select(variablesTransformar) %>% plot_histogram()
 
 ```
 
@@ -1148,8 +1157,6 @@ validation <-  validation %>% dplyr::mutate( has2ndFloor := ifelse( `2ndFlrSF`  
    A continuación transformaremos en columnas de tipo Factor aquellas que tiene valores alfanuméricos y que no parece que tengan un orden natural:
 
 ```{r}
-
-library(plyr)
 
 nombresVariablesFactores  <- c('MiscFeature','Alley','Fence','LotConfig','GarageType','MSZoning','Exterior1st','Exterior2nd','Electrical','SaleType','SaleCondition','Foundation','Heating','RoofStyle',
 'RoofMatl','LandContour','BldgType','HouseStyle','Neighborhood','Condition1','Condition2','MoSold','YrSold','Street','LotShape','Utilities','LandSlope','MasVnrType','BsmtFinType2','CentralAir','Functional','PavedDrive','hasPool','hasBasement','hasFirePlaces')
@@ -1304,11 +1311,35 @@ library(forcats)
    
 ```
 
- Y por último, trataremos de centrar y normalizar todas las variables numéricas una vez convertidas en factores en los anteriores pasos. Esto se realizará pensando sobre todo en el paso de aplicación del método de selección de variables "lasso", que exige que todas las variables numéricas tengan varianza 1 para evitar sesgos en el modelo resultante. El siguiente código realizará esta función:
+ Y por último, trataremos de centrar y normalizar todas las variables numéricas una vez convertidas en factores en los anteriores pasos. Además quitaremos algunos outliers detectados en el apartado segundo de esta memoria en las variables más importantes. 
+ La normalización se realizará pensando sobre todo en el paso de aplicación del método de selección de variables "lasso", que exige que todas las variables numéricas tengan varianza 1 y media 0 para evitar sesgos en el modelo resultante. El siguiente código realizará esta función:
 
 ```{r}
+# nos quitamos observaciones de casas con excesivo precio y con excesiva superficie
+train <- train %>%  dplyr::filter(Id != 1299 & Id !=524 )
+train <- train %>%  dplyr::filter(SalePrice  < 13.2 )
+train <- train %>%  dplyr::filter(GrLivArea  < 8.4 )
 train_sin_na <- train %>%  na.omit() %>% dplyr::select(-Id)
-preProcValuesTrain <- preProcess(train_sin_na  %>% dplyr::select(-OverallQual, -OverallCond),method = c("center", "scale"))
+
+listaPosOutliers <- c()
+for(i in colnames(train_sin_na)) {
+  if(is.numeric(train_sin_na[[i]]) && !is.factor(train_sin_na[[i]])  ) {
+      if(i %in% c('LotArea','1stFlrSF','GrLivArea','TotalBsmtSF','SalePrice','Total_porch_SF','TotalSF'))   {
+          outliersRosen <- rosnerTest(train_sin_na[[i]], k = 5, warn = F)
+          #print(outliersRosen$all.stats$Obs.Num)
+          listaPosOutliers <- c(listaPosOutliers,outliersRosen$all.stats$Obs.Num)
+      }
+  }
+}
+
+listaPosOutliers <- unique(listaPosOutliers , na.rm=TRUE)
+
+train_sin_na_outliers <- train_sin_na[-listaPosOutliers,] 
+
+#train_sin_na_outliers <- train_sin_na_outliers[-c(1334),] 
+train_sin_na_outliers <- train_sin_na_outliers[-c(358,182),] 
+
+preProcValuesTrain <- preProcess(train_sin_na_outliers  %>% dplyr::select(-OverallQual, -OverallCond),method = c("center", "scale"))
 
 test_sin_na <- test %>%  na.omit() %>% dplyr::select(-Id)
 preProcValuesTest <- preProcess(test_sin_na  %>% dplyr::select(-OverallQual, -OverallCond),method = c("center", "scale"))
@@ -1322,25 +1353,39 @@ preProcValuesValidation <- preProcess(validation_sin_na  %>% dplyr::select(-Over
 
 Teniendo en cuanto todo lo dicho en los anteriores apartados, las variables con las que al final nos quedaremos para el cálculo del modelo final serán las siguientes:
 
-```{r}
+```{r  message=FALSE, warning=FALSE, echo=FALSE}
 
-var_modelo = c( 'TotalSF','GrLivArea','LotArea','Total_Bathrooms','Total_porch_SF','MSZoning','Alley','LandContour','LotConfig','Condition1','BldgType','HouseStyle','RoofStyle','Exterior1st','Exterior2nd','MasVnrType','Foundation','Heating','SaleType','SaleCondition','YearBuilt','YearRemodAdd','MasVnrArea','MoSold','YrSold','OverallQual','OverallCond','PavedDrive','PoolArea','PoolQC','Fence','BsmtFinSF1','Electrical','Functional','ExterCond','ExterQual','BsmtQual','BsmtExposure','BsmtFinType1','BsmtUnfSF','HeatingQC','CentralAir','KitchenQual','Fireplaces','FireplaceQu','BedroomAbvGr','KitchenAbvGr','LotShape','GarageType','GarageArea','GarageQual','GarageCond','Neighborhood','hasPool','has2ndFloor','Total_porch_SF')
+
+
+var_modelo = c( 'GrLivArea','LotArea','Total_Bathrooms','Total_porch_SF','MSZoning','LandContour','LotConfig','Condition1','BldgType','HouseStyle','RoofStyle','MasVnrType','Foundation','SaleType','SaleCondition','YearBuilt','YearRemodAdd','MoSold','YrSold','OverallQual','OverallCond','PavedDrive','Fence','BsmtFinSF1','Functional','ExterQual','BsmtQual','BsmtExposure','BsmtFinType1','BsmtUnfSF','CentralAir','KitchenQual','Fireplaces','FireplaceQu','BedroomAbvGr','KitchenAbvGr','LotShape','GarageArea','GarageCond','Neighborhood','has2ndFloor','Alley','TotalSF','GarageType','Total_porch_SF','MasVnrArea')
 
 var_modelo_with_SalePrice = c(var_modelo,'SalePrice')
 
 ```
 
+  Las columnas que a priori hemos quitado sin justificación, son las siguientes:
+  * 'ExterCond','PoolArea','PoolQC','Exterior2nd','HeatingQC','Heating','Electrical': añaden inestabilidad al modelo al introducir autocorrelaciones en el mismo, sobre todo al crear las variables "dummies" en alguna de ellas.  Alguna de estas variables además tienen una varianza casi nula en el dataset de entrenamiento, por lo que nos vemos obligados a quitarlas.
+  * 'MSSubClass' y 'Exterior1st' dan problemas a la hora de crear las variables "dummies" asociadas por los valores que estas columnas tienen. No hemos sido capaces de solventar el problema.
+
+
 Ahora eliminaremos la columna Id de los datasets para que no intervenga en el modelo y lo recalcularemos con las variables anteriormente comentadas:
 
-```{r}
+```{r  message=FALSE, warning=FALSE, echo=FALSE}
 
-train_sin_na <- train %>%  na.omit() %>% dplyr::select(-Id)
-test_sin_na <- test %>%  na.omit() %>% dplyr::select(-Id)
-validation_sin_na <- validation %>%  na.omit() %>% dplyr::select(-Id)
+#train_sin_na <- train %>%  na.omit() %>% dplyr::select(-Id)
+#test_sin_na <- test %>%  na.omit() %>% dplyr::select(-Id)
+#validation_sin_na <- validation %>%  na.omit() %>% dplyr::select(-Id)
 
-trainTransformed <- predict(preProcValuesTrain, train_sin_na)
+trainTransformed <- predict(preProcValuesTrain, train_sin_na_outliers)
 testTransformed <- predict(preProcValuesTest, test_sin_na)
 validationTransformed <- predict(preProcValuesValidation, validation_sin_na)
+#trainTransformed <- train_sin_na_outliers
+#testTransformed <- test_sin_na
+#validationTransformed <- validation_sin_na
+
+```
+
+```{r warning=FALSE}
 
 modelRegressionTotal <- lm(reformulate(termlabels = var_modelo, response = 'SalePrice') ,data=trainTransformed)
 
@@ -1348,15 +1393,19 @@ cat('El modelo total usa', length(modelRegressionTotal$coefficients), 'variables
 
 ```
 
+  El siguiente código comentado ayudó a eliminar las variables que estaban introduciendo autocorrelaciones en el modelo total:
+
 ```{r}
-#summary( modelRegressionTotal )
-#predict(modelRegressionTotal,testTransformed)
+
+#car::vif(modelRegressionTotal)
+#alias(modelRegressionTotal)
 
 ```
 
+
 A continuación, intentaremos reducir la elevada dimensionalidad del modelo utilizando la libreria Caret y haciendo una regresión de tipo "Step Backward selection", es decir, utilizando el algoritmo que partiendo de todas las variables del modelo vaya creando nuevos modelos quitando cada vez una de las variables que contengan el estimador menos influyente en el modelo hasta converger. Para ello primero relalizamos la codificacion de las varibales categóricas en variables de tipo "dummy":
 
-```{r}
+```{r  message=FALSE, warning=FALSE, echo=FALSE}
 
 dummiesTrain <- dummyVars(reformulate(termlabels = var_modelo_with_SalePrice ),fullRank = T, data = data.frame(trainTransformed),sep='.')
 
@@ -1370,7 +1419,7 @@ testTransformedDummies <- predict(dummiesTest, newdata = testTransformed)
 
 El siguiente código teóricamente realiza esa funcionalidad, pero hemos tenido problemas al ejecutarlo debido a que codifica los valores de variables categóricas con espacios de distinta forma que el algoritmo "predict" utilizado en el anterior apartado. Dejamos el código en la práctica para que quede constancia de que por lo menos lo hemos intentado, pero ha dado un montón de problemas y no termina de funcinar correctamente por razones desconocidas:
 
-```{r}
+```{r  message=FALSE, warning=FALSE, echo=FALSE}
 #set.seed(123)
 # Set up repeated k-fold cross-validation
 #train.control <- trainControl(method = "cv", number = 10)
@@ -1394,8 +1443,9 @@ Al final, al realizar un predict del anterior modelo, da el siguiente error: Err
 
 Debido al fracaso del anterior modelo, lo intentaremos con una librería distinta que parece que funciona mejor. No obstante, en la ejecución de la misma nos indica que en la selección de variables realizadas siguen existiendo variables correladas.
 
-```{r}
+```{r }
 
+set.seed(seed) 
 modelStepForward <- ols_step_forward_p(modelRegressionTotal)
 
 length(modelStepForward$predictors)
@@ -1404,110 +1454,155 @@ cat('El modelo stepforward usa', length(modelStepForward$model$coefficients), 'v
 
 ```
 
-```{r}
-#plot(modelStepForward)
-#ols_plot_resid_fit(modelStepForward$model)
-```
-
  Y por último, utilizando la libreria caret intentarmos obtener una reducción del número de parámetros del modelo mediante una regularización de tipo "lasso":
 
-```{r}
-
-#gridLamdas <- expand.grid(alpha = 1, lambda = seq(0.001,0.1,by = 0.0005))
-#varControl <-caret::trainControl(method="cv", number=10)
-#lasso_mod <- caret::train(reformulate(termlabels = var_modelo, response = 'SalePrice'), data = data.frame(trainTransformed), method='glmnet', trControl= varControl, tuneGrid=gridLamdas) 
-#----------#lasso_mod$bestTune
-#----------#min(lasso_mod$results$RMSE)
-#lassoVarImp <- varImp(lasso_mod,scale=F)
-#lassoImportance <- lassoVarImp$importance
-#varsSelected <- length(which(lassoImportance$Overall!=0))
-#varsNotSelected <- length(which(lassoImportance$Overall==0))
-#cat(' El modelo de lasso usa', varsSelected, 'variables en el modelo, y rechazo ', varsNotSelected, 'variables.')
+```{r  message=FALSE, warning=FALSE, echo=FALSE}
+set.seed(seed) 
+gridLamdas <- expand.grid(alpha = 1, lambda = seq(0.001,0.1,by = 0.0005))
+varControl <-caret::trainControl(method="cv", number=5)
+lasso_mod <- train(reformulate(termlabels = var_modelo, response = 'SalePrice'), data = data.frame(trainTransformed), method='glmnet', trControl= varControl, tuneGrid=gridLamdas) 
+#lasso_mod$bestTune
+#min(lasso_mod$results$RMSE)
+lassoVarImp <- varImp(lasso_mod,scale=F)
+lassoImportance <- lassoVarImp$importance
+varsSelected <- length(which(lassoImportance$Overall!=0))
+varsNotSelected <- length(which(lassoImportance$Overall==0))
 
 
 #lm_formula_2 <- as.formula(str_replace(paste("SalePrice ~ ",paste(predictors(lasso_mod) , #collapse=" + "), sep = " "),'&','.'))
 #modelLasso <- lm(lm_formula_2, data = data.frame(trainTransformedDummies))
 #summary(modelLasso)
-
-
-
-
 ```
 
-   Como vemos, lasso ha quitado una gran cantidad de regresores, demasiados para nuestro gusto, por lo que no podemos estar seguros de que haya funcionado correctamente.
+```{r}
+cat(' El modelo de lasso usa', varsSelected, 'variables en el modelo, y rechazo ', varsNotSelected, 'variables.')
+```
+
+   Como vemos, lasso ha quitado una gran cantidad de regresores (curiosamente la cantidad varia en función de si lo ejecutamos como "chunk" o como "r-markdown"), demasiados para nuestro gusto, por lo que no podemos estar seguros de que haya funcionado correctamente.
 
 
 ## Ajuste, interpretación y diagnosis del modelo de regresión lineal múltiple
 
- En primer lugar almacenaremos los valores de las prediccion para la parte de test en 3 variables distintas. El segundo de los modelos da el siguiente warning 'prediction from a rank-deficient fit may be misleading' que no hemos sido capaces de discernir.
+ En primer lugar almacenaremos los valores de las prediccion para la parte de test en 3 variables distintas:
 
-```{r}
+```{r  message=FALSE, warning=FALSE, echo=FALSE}
  
-#valoresPredichosModeloCompleto <- predict(modelRegressionTotal,testTransformed)
+valoresPredichosModeloCompleto <- predict(modelRegressionTotal,testTransformed)
 
-#valoresPredichosModeloStepForward <- predict(modelStepForward$model,testTransformed)
+valoresPredichosModeloStepForward <- predict(modelStepForward$model,testTransformed)
 
-#valoresPredichosModeloLasso <- predict(lasso_mod,testTransformed)
+valoresPredichosModeloLasso <- predict(lasso_mod,testTransformed,s=lasso_mod$bestTune$lambda)
 
-#vectorCorrelacionesModeloCompleto <- #data.frame(cbind(actuals=testTransformed$SalePrice,predicted=valoresPredichosModeloCompleto))
-#correlacionModeloCompleto <- cor(vectorCorrelacionesModeloCompleto)
+```
+
+Una vez evaluados los resultados del dataset de "test" con cada uno de los modelos, intentaremos quedarnos con uno de ellos como el modelo final de la práctica. Para ello, en un primer momento construiremos varias matrices de correlacion entre los resultados predichos por cada uno de los modelos y el resultado final del dataframe "test" e imprimiremos los resultados:
 
 
-#vectorCorrelacionesModeloStepForward <- #data.frame(cbind(actuals=testTransformed$SalePrice,predicted=valoresPredichosModeloStepForward))
-#correlacionModeloStepForward <- cor(vectorCorrelacionesModeloStepForward)
+```{r}
+vectorCorrelacionesModeloCompleto <- data.frame(cbind(actuals=testTransformed$SalePrice,predicted=valoresPredichosModeloCompleto))
+correlacionModeloCompleto <- cor(vectorCorrelacionesModeloCompleto)
 
-#vectorCorrelacionesModeloLasso <- #data.frame(cbind(actuals=testTransformed$SalePrice,predicted=valoresPredichosModeloLasso))
-#correlacionModeloLasso <- cor(vectorCorrelacionesModeloLasso)
+vectorCorrelacionesModeloStepForward <- data.frame(cbind(actuals=testTransformed$SalePrice,predicted=valoresPredichosModeloStepForward))
+correlacionModeloStepForward <- cor(vectorCorrelacionesModeloStepForward)
 
-#cat('Correlacion modelo Completo entre predicciones train/test',correlacionModeloCompleto[1,2] )
-#cat('Correlacion modelo StepForward entre predicciones #train/test',correlacionModeloStepForward[1,2] )
-#cat('Correlacion modelo Lasso entre predicciones train/test',correlacionModeloLasso[1,2] )
+vectorCorrelacionesModeloLasso <- data.frame(cbind(actuals=testTransformed$SalePrice,predicted=valoresPredichosModeloLasso))
+correlacionModeloLasso <- cor(vectorCorrelacionesModeloLasso)
+
+cat('Correlacion modelo Completo entre predicciones train/test ',correlacionModeloCompleto[1,2],'\n' )
+cat('Correlacion modelo StepForward entre predicciones train/test',correlacionModeloStepForward[1,2],'\n' )
+cat('Correlacion modelo Lasso entre predicciones train/test',correlacionModeloLasso[1,2],'\n' )
 
 ```
   
-```{r}
-# library(DMwR)
-#regr.eval(valoresPredichosModeloCompleto,testTransformed$SalePrice)
-
-```
-
-```{r}
-
-#regr.eval(valoresPredichosModeloStepForward,testTransformed$SalePrice)
-
-```
-
-```{r}
-
-# regr.eval(valoresPredichosModeloLasso,testTransformed$SalePrice)
-
-```
-
+  Como vemos, parece ser que el modelo obtenido con Lasso es ligeramente mejor que los otros dos modelos. Ahora imprimiremos por pantalla un resumen con los parámetros "MAE (promedio de la diferencia absoluta entre los valores predichos y el valor observado)","MSE (Error cuadrático medio) ","RMSE (raiz cuadrad del Error cuadrático medio)" y "MAPE (error porcentual absoluto medio)". En primer lugar para el caso del modelo completo con todas las variables:
+  
   
 ```{r}
+library(DMwR)
+regr.eval(valoresPredichosModeloCompleto,testTransformed$SalePrice)
+```
+
+En segundo lugar para el caso del modelo "step forward" que se quedó con 80 variables:
+
+```{r}
+regr.eval(valoresPredichosModeloStepForward,testTransformed$SalePrice)
+```
+
+En tercer lugar para el caso del modelo "lasso" que se quedó con 73 variables:
+
+```{r}
+regr.eval(valoresPredichosModeloLasso,testTransformed$SalePrice)
+```
+
+ Como vemos, comparando estos tres modelos, el modelo "Lasso" vuelve otra vez a ser ligeramente mejor con menos variables.  No obstante, este modelo parece que tiene una R^2 bastante menor que los dos primeros modelos, como podemos comprobar a continuación:
+ 
+```{r}
+min(lasso_mod$results$Rsquared)
+```
+ 
+  Con lo que, teoricamente, el modelo Lasso tiene un menor poder de predicción que los otros dos.  No obstante, no conseguimos calcular el factor R^2 reducido para este modelo, por lo que no tomareos esta factor como relevante para la selección final del modelo.
+  
+  Ahora evaluaremos si los tres modelos calulados en los puntos anteriores son válidos. Así, presentaremos el resumen del modelo de regresión total:
+  
+```{r}
+library(jtools)
 summary(modelRegressionTotal)
 ```
+  
+  Como vemos el p-valor del modelo es pequeño, por lo que sí que parece que hay relación lineal entre los diferentes regresores y la variable de la que queremos obtener predicciones. Observamos también que hay muy pocas variables con un alto nivel de significancia para el modelo (p-valores marcados con 3 o 2 estrellas).
+  
+  Ahora realizaremos el mismo proceso para el modelo "BACKWARD STEPWISE":
   
 ```{r}
 summary(modelStepForward$model)
 ```  
   
+  Vemos que en este caso, las conclusiones a las que llegamos son similares y el R^2 ajustado sube un poco.  No obstante, este modelo tiene muchas menos variables que el anterior y un poder predictor similar, con lo que es preferible al anterior.
+  
+  Ahora realizaremos esto mismo para el modelo "Lasso", mostrando en una gráfica generada por la librería "Caret" la importancia relativa de cada una de las variables:
+  
 ```{r}
-min(lasso_mod$results$RMSE)
+varImp(lasso_mod)$importance %>% 
+  as.data.frame() %>%
+  rownames_to_column() %>%
+  arrange(Overall) %>%
+  filter(Overall != 0) %>%
+  mutate(rowname = forcats::fct_inorder(rowname )) %>%
+  ggplot()+
+    geom_col(aes(x = rowname, y = Overall))+
+    coord_flip()+
+    theme_bw()
+
+#lasso_coef = predict(lasso_mod$finalModel, type = "coefficients", s = bestlam)[1:20,]
 ```    
+
+ Los coeficientes obtenidos para el modelo lasso son los siguientes:
+
+```{r}
+coef(lasso_mod$finalModel, s = lasso_mod$bestTune$lambda)
+```
+  
+  Ahora comprobaremos mediante una serie de gráficos si se cumplen las hipótesis necesarias para la valided de los modelos de regresión. Comenzaremos con el modelo de regresión total:
   
 ```{r}
 par(mfrow=c(2,2))
 plot(modelRegressionTotal)
 ```
 
+Comprobamos con los anteriores gráficos los siguientes puntos:
+
+  * La distribución de los resíduos es aproximadamente normal.
+  * En la primera de las gráficas se observa que los residuos se distribuyen de forma más o menos homogénea excepto en los extremos en los que desaparece el patrón aleatorio. Esto parece indicar que no se han quitado correctamente todos los outliers posibles (pese a que se han quitado una gran cantidad). 
+  * Existe un alto grado de heteroestaticidad (la varianza no es constante con las observaciones) que queda patente en el tercero de los gráficos y que hace que el modelo conseguido no sea fiable. No hemos sido capaces de eliminar esto de ninguna manera. El cuarto gráfico también muestra este hecho. 
+  
+   Ahora dibujaremos un diagrama donde se muestran las distancias de cook de las distintas observaciones. Vemos que, efectivamente, hay observaciones como las 358 y 182 que son outliers aunque no hemos determinado por qué. 
+
+
 ```{r}
 plot(modelRegressionTotal,4,id.n=5)
 ``` 
 
-```{r}
-plot(modelRegressionTotal,5,id.n=5)
-```
+  Ahora repetiremos este mismo análisis en el modelo "Step BackWards" con los siguientes gráfico:
   
 
 ```{r}
@@ -1520,7 +1615,41 @@ plot(modelStepForward$model)
 plot(modelStepForward$model,4,id.n=5)
 ``` 
   
+   Comprobamos exactamente los mismos problemas que en el caso anterior, lo que indica que el modelo tiene también serios problemas.
+ 
+   Por último, realizaremos el mismo anális con el modelo lasso:
+  
 ```{r}
-plot(modelStepForward$model,5,id.n=5)
-```   
+library(plotmo)
+plotres(lasso_mod)
+```
+    
+  Observamos los mismos problemas que en el caso anterior. Los residuos no se distribuyen aleatoriamente en todas las observaciones y existe fuerte heteroestaticidad que no hemos sido capaces de quitar. 
+  
+  A la hora de interpretar el significado de los parámetos beta del modelo, debemos tener en cuenta los cambios de variable que hemos hecho. La variable "SalePrice" que queremos inferir tiene una transformación logarítmica. Por ello, agruparemos los parámetros en 2 categorías:
+  
+    *Variables regresoras que han sufrido una transformación log(X): en este caso la interpretación para un coeficiente beta dado (dejando el resto de las variables regresoras constantes) %incremento(SalePrice)= Beta* %incremento(Variable)
+    *Variables regresoras que han sufrido una transformación log(X+1):
+    *Variables que no han sufrido transformación y que son contínuas: en este caso la interpretación para un coeficiente beta dado (dejando el resto de las variables regresoras constantes) %incremento(SalePrice)= 100*Beta* %incremento(Variable)
+
+  Hay que tener en cuenta que todas las variables numéricas han sido centradas y normalizadas para tener varianza uno. La siguiente función deshace el cambio de variable para poder comparar los precios originales con los precios transformados:
+
+
+```{r}
+
+revPredict <- function(preproc, data, digits=0) {
+  data %>%
+    select(one_of(preproc$mean %>% names)) %>%
+    map2_df(preproc$std, ., function(sig, dat) dat * sig) %>%
+    map2_df(preproc$mean, ., function(mu, dat) dat + mu)
+}
+
+#cambioVariableInversoTest <- revPredict(preProcValuesTest, testTransformed)
+#exp(cambioVariableInversoTest$SalePrice)
+
+data.frame(cbind(preciosOriginales=testTransformed$SalePrice,predicted=valoresPredichosModeloLasso))
+
+
+```
+    
   
