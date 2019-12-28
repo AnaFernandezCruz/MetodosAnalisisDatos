@@ -31,6 +31,8 @@ library(scales)
 library(moments)
 library(corrr)
 library(EnvStats)
+library(plyr)
+library(forcats)
 
 seed <- 456
 
@@ -77,7 +79,7 @@ imp_mostFre_cat <- function(df, cols){
 }
 
 imp_mean_yearB <- function(df){
-  vecindario_precioGaraje<- df %>% dplyr::select(Neighborhood, GarageYrBlt)
+  vecindario_precioGaraje <- df %>% dplyr::select(Neighborhood, GarageYrBlt)
   
   vecindario_agrupado <- vecindario_precioGaraje %>% 
     group_by(Neighborhood) %>% 
@@ -126,6 +128,57 @@ lmp <- function (modelobject) {
     return(p)
 }
 
+# YearBuilt: discretizamos la variable en tramos
+# YearRemodAdd: discretizamos la variable en tramos
+discret_yearsBuiltAndRemod <- function(df){
+  
+  df$YearBuilt <- cut(df$YearBuilt, 
+                   breaks=c(-Inf, 1930, 1960, 1990,Inf), 
+                   labels=c("1900_1930","1930_1960","1960_1990","1990_"))
+  
+  df$YearRemodAdd <- cut(df$YearRemodAdd, 
+                   breaks=c(-Inf, 1930, 1960, 1990,Inf), 
+                   labels=c("1900_1930","1930_1960","1960_1990","1990_")) 
+  return(df)
+}
+
+
+# Transformacion logaritmica normal o +1
+var_log <- function(df, cols){
+  log_transform <- function(x, na.rm=FALSE) (log(x +1))
+  for(i in 1:ncol(df)){
+    nombreCol <- names(df)[i]
+    if( !(nombreCol == 'MasVnrArea' | nombreCol == 'MiscVal' | nombreCol == 'SaleCondition') ) {
+      
+      if (nombreCol %in% cols & nombreCol != 'SalePrice'){
+        df[,i] <- log(df[,i] +1)
+      }else if(nombreCol == 'SalePrice' | nombreCol == 'TotalSF'){
+        df[,i] <- log(df[,i])
+      }
+    }
+  }
+  return(df)
+}
+# Crea nuevas variables dependiendo de los valores de las variables indicadas
+create_newFactor <- function(df){
+  df <- df %>% dplyr::mutate( hasPool := ifelse(PoolArea > 0, "True", "False")) 
+  df <- df %>% dplyr::mutate( hasBasement := ifelse(TotalBsmtSF > 0, "True", "False")) 
+  df <- df %>% dplyr::mutate( hasFirePlaces := ifelse(Fireplaces > 0, "True", "False")) 
+  df <- df %>% dplyr::mutate( has2ndFloor := ifelse(`2ndFlrSF`  > 0, "True", "False")) 
+  return(df)
+}
+
+#Crea nuevas categorias dependiendo de los factores 
+transform_alfa_to_factor <- function(df, cols){
+  for(i in cols){
+    df[[i]] <- as.factor(df[[i]])
+  }
+  
+  df$MSSubClass <- as.factor(df$MSSubClass)
+  df$MSSubClass <- revalue(df$MSSubClass, c('20'='1_story_1946_', '30'='1_story_1945_', '40'='1_story_unf_attic', '45'='1_5_story_unf', '50'='1_5 story_fin', '60'='2_story_1946_', '70'='2_story_1945_', '75'='2_5_story_all_ages', '80'='split_multi_level', '85'='split_foyer', '90'='duplex_all_style_age', '120'='1_story_PUD_1946_', '150'='1_5_story_PUD_all', '160'='2_story_PUD_1946', '180'='PUD_multilevel', '190'='2_family_conversion'))
+  
+  return(df)
+}
 ```
 
 ## Objetivos
@@ -750,3 +803,240 @@ for(i in colnames(dataset_var_continuas)) {
 }
 
 ```
+
+A continuación, almaceneramos en un conjunto de variables todas las recomendaciones que se han hecho en este punto para proceder en partes posteriores de la práctica a llevar a cabo dichas recomendaciones (eliminar columnas del modelo por posibilidad de autocorrelacines, eliminacion de columnas varias por baja varianza de las mismas, etc).
+
+
+```{r}
+
+var_modelo_with_SalePrice = c('SalePrice')
+
+var_columnas_eliminadas = c('TotRmsAbvGrd','GarageYrBlt','GarageCars','TotalBsmtSF','1stFlrSF','2ndFlrSF','BsmtFinSF2','1stFlrSF','2ndFlrSF','FullBath','HalfBath','BsmtFullBath','BsmtHalfBath','OpenPorchSF','3SsnPorch','EnclosedPorch','ScreenPorch','WoodDeckSF','GarageFinish','hasBasement','hasFirePlaces','LotFrontage')
+
+var_columnas_eliminadas_bajo_p_valor = c('LandSlope')
+
+var_transformacion_log = c('TotalSF')
+
+var_eliminar_correlacion = c('TotRmsAbvGrd','GarageYrBlt','GarageCars')
+
+```
+
+## Transformaciones de variables
+
+**Union de variables**
+
+Ahora procederemos a realizar el procesado de las variables cuantitativas, tanto contínuas como discretas. Lo primero que haremos será contruir 3 nuevas variables como sigue:
+
+* TotalSF : será la suma de pies cuadrados entre sótano, primera planta y segunda planta.
+
+* Total_Bathrooms: llevará cuenta del número total de cuartos de baño existentes en la casa, contabilizando los baños pequeños con un peso inferior.
+
+* Total_porch_SF: llevará cuente del número todal de pies cuadrados existentes en los diferentes porches.
+  
+Evidentemente, estas variables sustituyen en el modemo final a las variables de las que se componen. Para no destruir información, además, en el apartado de procesado de variables cualitativas crearemos **nuevas variables** facetadas que indiquen **si una casa tiene segundo piso y porche**, porque no todas las casas tienen estas dos características. Así nos quitamos el problema que vimos en el apartado de análisis exploratorio con numerosos ceros en algunas de estas variables.
+
+```{r message=FALSE, warning=FALSE}
+
+train <- train %>% dplyr::mutate( TotalSF = TotalBsmtSF + `1stFlrSF` + `2ndFlrSF`  )
+train <- train %>% dplyr::mutate( Total_Bathrooms = FullBath + 0.5*HalfBath +  BsmtFullBath + 0.5*BsmtHalfBath )
+train <- train %>% dplyr::mutate( Total_porch_SF = OpenPorchSF +`3SsnPorch` +  EnclosedPorch + ScreenPorch + WoodDeckSF )
+
+```
+
+```{r message=FALSE, warning=FALSE}
+
+var_creadas_transformacion = c( 'TotalSF','Total_Bathrooms','Total_porch_SF','hasPool','hasGarage','hasBasement','hasFirePlaces','has2ndFloor')
+ 
+train %>%  dplyr::select('TotalSF','Total_Bathrooms','Total_porch_SF') %>% plot_histogram()
+
+```
+
+**Discretizar año de contrucion y de remodelación**
+
+Otro procesamiento que realizaremos sobre estas variables es cuantificar las variables que portan los años de reforma y construcción de la casa en rangos de 30 años, para simplificar el modelo final generado. Esta cuantificación transformará estas variables en variables categóricas. El código que realiza la transformación es el siguiente:
+
+```{r}
+
+train <- train %>% discret_yearsBuiltAndRemod()
+
+```
+
+**Logaritmo**
+
+Continuaremos este apartado realizando la transformación logarítmica tanto de la variable SalePrice como de las variables con alto grado de asimetría. Debido a que algunas de estas **variables tienen valores nulos**, **sumaremos uno a la función logarítmica** para evitar errores en el cálculo del logaritmo.
+
+```{r}
+
+variablesTransformar <- names(variablesSkewnessAlto)[!names(variablesSkewnessAlto) %in% var_columnas_eliminadas  & !names(variablesSkewnessAlto) %in% var_eliminar_correlacion ]
+
+train <- train %>% var_log(variablesTransformar)
+
+```
+
+**Procesado de variables cualitativas**
+
+Comenzaremos este apartado creando las siguientes variables como complemento a la información en pies cuadrados de las distintas partes que componen una vivienda:
+  
+* hasPool : variable categórica que indica si la vivienda tiene piscina o no.
+
+* hasBasement : variable categórica que indica si la vivienda tiene sótano o no.
+
+* hasFirePlaces :
+
+* has2ndFloor: variable categórica que indica si la vivienda tiene segunda planta o no.
+
+Habrá que tener cuidado con estas variables al añadirlas al modelo porque podrían estar altamente correladas con las variables que indican el tamaño en superficie de estos 3 elementos.
+
+```{r message=FALSE, warning=FALSE}
+
+
+
+train <- train %>% create_newFactor()
+
+```
+
+A continuación transformaremos en columnas de tipo Factor aquellas que tiene valores alfanuméricos y que no parece que tengan un orden natural.
+
+```{r}
+
+nombresVariablesFactores  <- c('MiscFeature','Alley','Fence','LotConfig','GarageType','MSZoning','Exterior1st','Exterior2nd','Electrical','SaleType','SaleCondition','Foundation','Heating','RoofStyle',
+'RoofMatl','LandContour','BldgType','HouseStyle','Neighborhood','Condition1','Condition2','MoSold','YrSold','Street','LotShape','Utilities','LandSlope','MasVnrType','BsmtFinType2','CentralAir','Functional','PavedDrive','hasPool','hasBasement','hasFirePlaces')
+
+train <- train %>% transform_alfa_to_factor(nombresVariablesFactores)
+
+```
+
+Y por último, todas las variables que encierran una relación de orden en ellas (por ejemplo, que sirven para cuantificar una característica de peor a mejor), se convierten en variables de tipo factor, pero estableciendo los distintos niveles de 0 a el valor máximo en función del valor que representan.
+
+```{r}
+
+#OverallQual, OverallCond (dejarlas como estan)
+levesl1_10 <- c("Very Poor","Poor","Fair","Below Average","Average","Above Average","Good","Very Good","Excellent","Very Excellent")
+
+#ExterQual , ExterCond , HeatingQC, KitchenQual,GarageQual,GarageCond
+return_position1_5 <- function(elements) {
+    levesl1_5 <- c('Po','Fa','TA','Gd','Ex')
+    pos <- match(elements,levesl1_5)
+    elem <- which(levesl1_5 %in% elements)
+    return(levesl1_5[elem])
+}
+
+
+#BsmtQual,BsmtCond,FireplaceQu
+return_position1_6 <- function(elements) {
+    levesl1_6 <- c('NA','Po','Fa','TA','Gd','Ex')
+    pos <- match(elements,levesl1_6)
+    elem <- which(levesl1_6 %in% elements)
+    return(levesl1_6[elem])
+}
+
+
+#BsmtExposure
+return_position1_5_B <- function(elements) {
+    levesl1_5_B <- c('NA','No','Mn','Av','Gd')
+    pos <- match(elements,levesl1_5_B)
+    elem <- which(levesl1_5_B %in% elements)
+    return(levesl1_5_B[elem])
+}
+
+
+#BsmtFinType1 , BsmtFinType2
+return_position1_7 <- function(elements) {
+    levesl1_7 <- c('NA','Unf','LwQ','Rec','BLQ','ALQ','GLQ')
+    pos <- match(elements,levesl1_7)
+    elem <- which(levesl1_7 %in% elements)
+    return(levesl1_7[elem])
+}
+
+#CentralAir
+levesl_2 <- c('N','Y')  
+
+#GarageFinish
+return_levels_garage <- function(elements) {
+    levels_garage <-c('NA','Unf','RFn','Fin')
+    pos <- match(elements,levels_garage)
+    elem <- which(levels_garage %in% elements)
+    return(levels_garage[elem])
+}
+
+
+# PoolQC
+return_levesl_poolQC <- function(elements) {
+    levesl_poolQC <- c('NA','Fa','TA','Gd','Ex')
+    pos <- match(elements,levesl_poolQC)
+    elem <- which(levesl_poolQC %in% elements)
+    return(levesl_poolQC[elem])
+}
+
+f5 <- function(df, var, func){
+  df <- df %>% dplyr::mutate(var:=fct_relevel(var,func))
+
+}
+
+train <- train %>% f5(ExterQual,return_position1_5)
+      #OverallCond
+      train <- train %>% dplyr::mutate( ExterQual:=fct_relevel(ExterQual,return_position1_5))
+      test <- test %>% dplyr::mutate( ExterQual:=fct_relevel(ExterQual,return_position1_5))
+     validation <- validation %>% dplyr::mutate( ExterQual:=fct_relevel(ExterQual,return_position1_5))
+      #ExterCond , 
+      train <- train %>% dplyr::mutate( ExterCond := fct_relevel(ExterCond,return_position1_5))
+      test <- test %>% dplyr::mutate( ExterCond := fct_relevel(ExterCond,return_position1_5))
+      validation <- validation %>% dplyr::mutate( ExterCond := fct_relevel(ExterCond,return_position1_5))
+      #HeatingQC, 
+      train <- train %>% dplyr::mutate( HeatingQC := fct_relevel(HeatingQC,return_position1_5))
+      test <-  test %>% dplyr::mutate( HeatingQC := fct_relevel(HeatingQC,return_position1_5))
+      validation <- validation %>% dplyr::mutate( HeatingQC := fct_relevel(HeatingQC,return_position1_5))
+      #KitchenQual,
+      train <- train %>% dplyr::mutate( KitchenQual := fct_relevel(KitchenQual,return_position1_5))
+      test <-  test %>% dplyr::mutate( KitchenQual := fct_relevel(KitchenQual,return_position1_5))
+      validation <-  validation %>% dplyr::mutate( KitchenQual := fct_relevel(KitchenQual,return_position1_5))
+      #GarageQual,
+      train <- train %>% dplyr::mutate( GarageQual := fct_relevel(GarageQual,return_position1_5))
+      test <-  test %>% dplyr::mutate( GarageQual := fct_relevel(GarageQual,return_position1_5))
+      validation <-  validation %>% dplyr::mutate( GarageQual := fct_relevel(GarageQual,return_position1_5))
+      #GarageCond
+      train <- train %>% dplyr::mutate( GarageCond := fct_relevel(GarageCond,return_position1_5))
+      test <-  test %>% dplyr::mutate( GarageCond := fct_relevel(GarageCond,return_position1_5))
+     validation <-  validation %>% dplyr::mutate( GarageCond := fct_relevel(GarageCond,return_position1_5))
+      #BsmtQual
+      train <- train %>% dplyr::mutate( BsmtQual := fct_relevel(BsmtQual,return_position1_6))
+      test <-  test %>% dplyr::mutate( BsmtQual := fct_relevel(BsmtQual,return_position1_6))
+      validation <-  validation %>% dplyr::mutate( BsmtQual := fct_relevel(BsmtQual,return_position1_6))
+      #BsmtCond,
+      train <- train %>% dplyr::mutate( BsmtCond := fct_relevel(BsmtCond,return_position1_6))
+      test <- test %>% dplyr::mutate( BsmtCond := fct_relevel(BsmtCond,return_position1_6))
+      validation <- validation %>% dplyr::mutate( BsmtCond := fct_relevel(BsmtCond,return_position1_6))
+      #FireplaceQu
+      train <- train %>% dplyr::mutate(FireplaceQu := fct_relevel(FireplaceQu,return_position1_6))
+      test <-  test %>% dplyr::mutate(FireplaceQu := fct_relevel(FireplaceQu,return_position1_6))
+     validation <-  validation %>% dplyr::mutate(FireplaceQu := fct_relevel(FireplaceQu,return_position1_6))
+      #BsmtExposure
+      train <- train %>% dplyr::mutate( BsmtExposure := fct_relevel(BsmtExposure,return_position1_5_B))
+      test <-  test %>% dplyr::mutate( BsmtExposure := fct_relevel(BsmtExposure,return_position1_5_B))
+      validation <-  validation %>% dplyr::mutate( BsmtExposure := fct_relevel(BsmtExposure,return_position1_5_B))
+      #BsmtFinType1 
+      train <- train %>% dplyr::mutate( BsmtFinType1 := fct_relevel(BsmtFinType1,return_position1_7))
+      test <-  test %>% dplyr::mutate( BsmtFinType1 := fct_relevel(BsmtFinType1,return_position1_7))
+      validation <-  validation %>% dplyr::mutate( BsmtFinType1 := fct_relevel(BsmtFinType1,return_position1_7))
+      
+      #BsmtFinType2
+      train <- train %>% dplyr::mutate( BsmtFinType1 := fct_relevel(BsmtFinType2,return_position1_7))
+      test <-  test %>% dplyr::mutate( BsmtFinType1 := fct_relevel(BsmtFinType2,return_position1_7))
+      validation <-  validation %>% dplyr::mutate( BsmtFinType1 := fct_relevel(BsmtFinType2,return_position1_7))
+      
+     #GarageFinish
+      train <- train %>% dplyr::mutate( GarageFinish := fct_relevel(GarageFinish,return_levels_garage))
+      test <-  test %>% dplyr::mutate( GarageFinish := fct_relevel(GarageFinish,return_levels_garage))
+      validation <-  validation %>% dplyr::mutate( GarageFinish := fct_relevel(GarageFinish,return_levels_garage))
+      
+      # PoolQC
+      train <- train %>% dplyr::mutate( PoolQC := fct_relevel(PoolQC,return_levesl_poolQC))
+      test <-  test %>% dplyr::mutate( PoolQC := fct_relevel(PoolQC,return_levesl_poolQC))
+      validation <-  validation %>% dplyr::mutate( PoolQC := fct_relevel(PoolQC,return_levesl_poolQC))
+
+
+# para dummify variables si es necesario tenemos esta funcion del paquete dataexplorer
+#train <- dummify(train, maxcat = 50L, select = var_nominales)
+   
+```
+
