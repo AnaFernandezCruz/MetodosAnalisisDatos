@@ -25,9 +25,12 @@ library(caret)
 library(MASS)
 library(forcats)
 library(ggpubr)
-library(corrr)
-library(moments)
 library('olsrr')
+library(gridExtra)
+library(scales)
+library(moments)
+library(corrr)
+library(EnvStats)
 
 seed <- 456
 
@@ -345,16 +348,61 @@ Y ya tendríamos todas las columnas con datos faltantes imputadas.
 
 ## Analisis y procesado de variables
 
-Ahora comenzaremos con el análisis univariante de los datos del dataset. Empezaremos dicho análisis mostrando un conjunto de histogramas para las **variables nominales**:
+Ahora comenzaremos con el análisis univariante de los datos del dataset. Empezaremos dicho análisis mostrando un conjunto de histogramas.
 
+**Variables nominales**:
 
 ```{r}
 
-train %>%  dplyr::select(var_nominales) %>% plot_bar()
+train %>%  dplyr::select(var_nominales) %>% plot_bar(nrow =2,ncol=2)
 
 ```
 
-A la vista de estos diagramas, observamos lo siguiente:
+A la vista de estos histogramas, observamos lo siguiente:
+
+* Observamos que hay una variable nominal que tiene una gran cantidad de valores. Esa variable (denominada "Neighbourhoud") parece especialmente importante debido a que codifica el barrio al que pertenece la casa puesta a la venta, y parece que será importante en el modelo final, por la evidente correlación que habrá entre los precios de la vivienda y la zona en la que se encuentran. No obstante, es una variable con una gran cantidad de valores distintos, lo cuál podría ser un problema para el modelo de regresión lineal. A continuación realizarmos un par de diagrama de barras mostrando la distribución frente al precio de venta y el número de cassas por vecindario.
+
+```{r message=FALSE, warning=FALSE} 
+
+ gr1 <- ggplot(train[!is.na(train$SalePrice),], aes(x=Neighborhood, y=SalePrice)) +
+        geom_bar(stat='summary', fun.y = "median", fill='blue') +
+        theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+        scale_y_continuous(breaks= seq(0, 1800000, by=20000), labels = comma) +
+        geom_label(stat = "count", aes(label = ..count.., y = ..count..), size=3) +
+        geom_hline(yintercept=150000, linetype="dashed", color = "red") 
+
+gr2 <- ggplot(data=train, aes(x=Neighborhood)) +
+        geom_histogram(stat='count')+
+        geom_label(stat = "count", aes(label = ..count.., y = ..count..), size=3)+
+        theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+grid.arrange(gr1, gr2)
+
+``` 
+
+Una posible manera de quitarnos esta molesta variable es discretizándola por un umbral de precio de venta medio en la zona. Podríamos llamar a las dos colecciones "zona cara" y "zona normal".
+
+La otra variable categórica que se podría tratar de la misma forma que la anterior es una varible que clasifica a la casa según un cojunto cerrado de valores que a priori no tiene un significado claro para nosotros. Mostramos las mismas gráficas para esta variable para ver si se puede seguir una estrategia similar a la de la anterior variable:
+ 
+```{r message=FALSE, warning=FALSE}
+
+gr1 <- ggplot(train[!is.na(train$SalePrice),], aes(x=MSSubClass, y=SalePrice)) +
+        geom_bar(stat='summary', fun.y = "median", fill='blue') +
+        theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+        scale_y_continuous(breaks= seq(0, 800000, by=50000), labels = comma) +
+        geom_label(stat = "count", aes(label = ..count.., y = ..count..), size=3) +
+        geom_hline(yintercept=150000, linetype="dashed", color = "red") 
+
+gr2 <- ggplot(data=train, aes(x=MSSubClass)) +
+        geom_histogram(stat='count')+
+        geom_label(stat = "count", aes(label = ..count.., y = ..count..), size=3) +
+        theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+grid.arrange(gr1, gr2)
+
+```  
+
+* Se observa que todas las distribuciones continen un alto grado de asimetría (Skewness), cosa que habrá que tener en cuenta por si hay que realizar algún tipo de transformación sobre ellas en futuros apartados de la práctica.
 
 * Existe una gran cantidad de variables que tienen una **varianza muy reducida**, tales como Street, Alley, LandContour, Condition1, Condition2, RoofStyle, RoofMtl, Heating, GarageType, SaleCondition.
 
@@ -380,38 +428,325 @@ for(i in colnames(train)[elementosBajaVarianza]) {
   }
 }
 
-(var_eliminar_correlacion)
-
 var_to_remove <- c(var_to_remove,var_eliminar_correlacion)
 
 ```
 
-Otra cosa que se observa en los anteriores diagramas es que todas las distribuciones continen un alto grado de asimetría (Skewness), cosa que habrá que tener en cuenta por si hay que realizar algún tipo de transformación sobre ellas en futuros apartados de la práctica:
-    
-Ahora realizaremos el mismo análisis con las **variables ordinales**, que no son otra cosa que variables categóricas pero que encierran una relación de orden interna. El tratamiento de estas variables para transformarlas en categóricas y cambiar el ordenamiento alfabético que R les da por defecto:
+Las siguientes variables se eliminaran del dataset:
 
 ```{r}
 
-train %>% dplyr::select(var_ordinales) %>% plot_bar()
+(var_eliminar_correlacion)
 
 ```
 
+**Variables ordinales**:
+    
+```{r}
+
+train %>% dplyr::select(var_ordinales) %>% plot_bar(nrow =2,ncol=2)
+
+```
+
+No son otra cosa que variables categóricas pero que encierran una relación de orden interna. El tratamiento de estas variables para transformarlas en categóricas y cambiar el ordenamiento alfabético que R les da por defecto.
+
 Se observan práctimante las mismas anomalías en en el caso anterior, variables con distribuciones muy alejadas de la normalidad y en muchos casos dichas variables apenas aportan información debido a que la mayoría de los valores están concentrados en una única categoría.
 
-Proseguiremos con las **variables contínuas**:
+**Variables contínuas**:
   
 ```{r}
 
 var_continuas <- c('LotArea','MasVnrArea','BsmtFinSF1','BsmtFinSF2','BsmtUnfSF','TotalBsmtSF','1stFlrSF','2ndFlrSF','LowQualFinSF','GrLivArea','GarageArea','WoodDeckSF','OpenPorchSF','EnclosedPorch', '3SsnPorch','ScreenPorch','PoolArea','MiscVal','SalePrice')
 
-train %>% dplyr::select(var_continuas) %>% plot_histogram()
+train %>% dplyr::select(var_continuas) %>% plot_histogram(nrow =2,ncol=2)
 
 ```
 
 Los comentarios que se pueden hacer en este caso son los siguientes:
 
-* Muy pocas variables parecen seguir una distribución normal y casi todas tienen un fuerte sesgo hacia la izquierda (y unas pocas a la derecha), sugiriendo para muchas de ellas una transformación de tipo logarítmico. Además, algunas de ellas parecen presentar numerosos "outliers" debido a que el rango de variación de las mismas es muy elevado en una gran parte de los valores finales sin que aparezcan casi valores en los mismos. 
+* Muy pocas variables parecen seguir una distribución normal y casi todas tienen un fuerte sesgo hacia la izquierda (y unas pocas a la derecha), sugiriendo para muchas de ellas una **transformación de tipo logarítmico**. Además, algunas de ellas parecen presentar **numerosos "outliers"** debido a que el rango de variación de las mismas es muy elevado en una gran parte de los valores finales sin que aparezcan casi valores en los mismos. 
 
 * La variable "Id" es una especie de clave primária organizadora de las filas y hay que eliminarla en los procesos de regresión.
 
-  Nos centraremos ahora en mostrar con mas detalle los histograma y diagramas de densidad de las variables que describen el tamaño en superficie de cada parte en la que se compone una casa: 
+```{r}
+
+var_to_remove <- c(var_to_remove,'Id')
+
+```
+
+Nos centraremos ahora en mostrar con mas detalle los histograma y diagramas de densidad de las variables que describen el tamaño en superficie de cada parte en la que se compone una casa:
+
+*(Pc-> Pies cuadrados)*
+*(Mc-> Metros cuadrados)*
+*(Rooms-> Habitaciones)*
+
+```{r g_r, message=FALSE, warning=FALSE} 
+
+s1 <- ggplot(data= train, aes(x=GrLivArea)) +
+        geom_density() + labs(x='Pc habitables')
+s2 <- ggplot(data=train, aes(x=as.factor(TotRmsAbvGrd))) +
+        geom_histogram(stat='count') + labs(x='nº rooms encima del sótano')
+s3 <- ggplot(data= train, aes(x=`1stFlrSF`)) +
+        geom_density() + labs(x='Pc - 1ª planta')
+s4 <- ggplot(data= train, aes(x=`2ndFlrSF`)) +
+        geom_density() + labs(x='Pc - 2ª planta')
+s5 <- ggplot(data= train, aes(x=TotalBsmtSF)) +
+        geom_density() + labs(x='Mc - sótano')
+s6 <- ggplot(data= train[train$LotArea<100000,], aes(x=LotArea)) +
+        geom_density() + labs(x='Mc - jardin')
+#s7 <- ggplot(data= train, aes(x=LotFrontage)) +
+#        geom_density() + labs(x='Tamaño en metros cuadrados del jardin frontal')
+s8 <- ggplot(data= train, aes(x=LowQualFinSF)) +
+        geom_histogram() + labs(x='Espacio no habitable 1ª y 2ª')
+
+#layout <- matrix(c(1,2,5,3,4,8,6,7),4,2,byrow=TRUE)
+grid.arrange(s1, s2, s3, s4, s5, s6, s8)
+```
+
+
+**Variables discretas**:
+
+```{r}
+
+train %>% dplyr::select(var_discretas) %>% plot_histogram(nrow =2,ncol=2)
+
+```
+
+Comentarios parecidos a el análisis de distribución de las variables contínuas se pueden hacer para estas variables. No obstante merece la pena recalcar que algunas de estas variables (YearBuilt,YearRemodAdd y YrSold) **codifican años**. En estos casos, para simplificar el modelo y debido a la irregular distribución de las mismas, **se dividirán estas variables en rangos** (de, por ejemplo, 20 años) y se creará una faceta representando esta división en el apartado de tratamiento de variables cuantitativas.
+
+**Variable SalePrice**:
+
+
+Ahora nos ocuparemos del análisis de la variable dependiente de nuestro modelo, el precio de las casas. En primer lugar dibujaremos su histograma:
+
+```{r}
+
+ggplot(train, aes(x=SalePrice)) + 
+    geom_histogram(aes(y=..density..),      
+                   binwidth=7000,
+                   colour="black", fill="white") +
+    geom_density(alpha=.2, fill="#FF6666")  
+
+```
+
+Vemos que esta variable tiene un importe sesgo a la izquierda y parece que un cambio de variable de tipo logarítmico podría convertirla en una variable con distribución normal, cosa importante para el modelo lineal de regresión múltiple. El sesgo es muy fácilmente explicable por la naturaleza de la propia variable: la mayoría de las casas deberán tener un precio ajustado a la distribución de la riqueza entre los habitantes de la ciudad, y muy pocas tendrán un gran valor (casas lujosas) o serán infraviviendas. Confirmemos esta hipótesis realizando el cambio de variable en la misma y dibujando su función de distribución normal aproximada:
+
+```{r message=FALSE, warning=FALSE}
+
+fitDistribution <- fitdistr(log10(train$SalePrice), densfun = "normal")
+  ggplot(data = train) +
+  geom_histogram(mapping = aes(x = log10(SalePrice), y = ..density..), col="white") +
+  stat_function(fun = dnorm, args = list(mean = fitDistribution$estimate[1], sd = fitDistribution$estimate[2], log = F), 
+  color="red", lwd=1)
+
+```
+
+Vemos que, efectivamente, lo que hemos comentado en el anterior apartado se cumple. 
+Detectamos también que el rango dinámico de la variable es muy grande en su parte    derecha sin que apenas haya valores en dicho intervalo, lo que invita a pensar en la presencia de "outliers" (casas de un gran valor económico reservadas a la gente más rica de la ciudad). Dibujaremos sendos diagramas de cajas con la variable original y la variable transformada:
+
+```{r message=FALSE, warning=FALSE}
+
+graf3 <- train %>% dplyr::select(SalePrice) %>%
+  na.omit() %>%
+  ggplot(aes(x=0,y=SalePrice)) +
+    geom_boxplot(outlier.colour="black", outlier.shape=16,
+             outlier.size=2, notch=FALSE)
+
+graf4 <- train %>% dplyr::mutate(log10_saleprice = log10(SalePrice)) %>%
+  dplyr::select(log10_saleprice) %>%
+  na.omit() %>%
+  ggplot(aes(x=0,y=log10_saleprice)) +
+    geom_boxplot(outlier.colour="black", outlier.shape=16,
+             outlier.size=2, notch=FALSE)
+
+ggarrange(graf3,graf4)
+
+```
+
+Vemos claramente la existencia de Outliers en esta variable que la transformación logarítmica no es capaz de resolver, tanto en los valores superiores como en los inferiores. En una parte futura de este apartado, detectaremos y almacenaremos en sendas variables estos Outliers para todas las variables independientes y tomar una decisión de cómo transformales en los apartados de tratamiento de variables cualitativas y cuantitativas.
+
+**Graficos QQ - Variables continuas y discretas**
+
+Ahora realizaremos un conjunto de gráficos cuantil/cuantil sobre las variables continuas y discretas para corroborar que hay pocas variables con una distribución normal.
+
+```{r}
+
+train %>% plot_qq(sampled_rows = 1000L, nrow =2,ncol=2)
+
+```
+
+Las que más se aproximan a esta distribución son: LotArea, LotFrontage, GrLivArea, TotalBsmtSF y X1stFlrSF. Este diagrama pone en evidencia también la gran cantidad de Outliers que tienen algunas variables.
+
+Almacenaremos el grado de asimetría de dichas variables para en un futuro poder tener un criterio más claro de qué variables son candidatas a un tipo de transformación logarítmica.
+
+```{r message=FALSE, warning=FALSE }
+
+var_continuas_discretas = c(var_continuas,var_discretas)
+listasVariablesSkewness <-  na.omit(train %>% dplyr::select(var_continuas_discretas)) %>% skewness()
+variablesSkewnessAlto <- listasVariablesSkewness[abs(listasVariablesSkewness) > 0.8]  
+
+```
+
+## Correlación
+
+Ahora procedermos a realizar el análisis vivariante de nuestros datos. Empezaremos con analizar los coeficientes de correlación entre las distintas variables. El siguiente diagrama intenta dibujar un mapa de calor de dichas correlaciones para las variables contínuas, pero debido a la gran cantidad de varibles en dicho diagrama no se puede visualizar nada con claridad:
+
+```{r message=FALSE, warning=FALSE}
+
+splitDataset <- split_columns(train, binary_as_factor = FALSE)
+plot_correlation(na.omit(splitDataset$continuous), type = "c" ,maxcat = 5L,theme_config = list(legend.position = "bottom", axis.text.x =element_text(angle = 90),axis.text.y = element_text(size = rel(0.4))  ))
+
+```
+
+**Matriz de correlaciones - Variables continuas**
+
+Crearemos una matriz de correlaciones con las variables continuas para intentar evidencia de mejor forma estos posibles casos de variables fuertemente correlacionadas que podrían desestabilizar el resultado del proceso de regresión lineal:
+
+```{r message=FALSE, warning=FALSE}
+
+corrmatrix <-corrr::correlate(na.omit(train %>% dplyr::select(var_continuas)))
+rplot(corrmatrix, legend = TRUE, shape = 16,print_cor = TRUE) +theme(axis.text.x = element_text(angle = 90))
+
+```
+
+Con esta matriz se observan lo siguiente:
+
+* La mayor parte de las variables representan una correlación positiva con el precio de la vivienda y entre ellas. Eso es normal debido a que muchas representan cantidades (pies cuadrados en las distintas zonas en las que se descompone las estancias de la vivienda, número y tamaño de cada planta, tamaño de garage y sótanos, etc. ). Evidentemente, cuandos mayores son estos números, normalmente mayor será el valor de la vivienda.
+
+* Las variables 1stFlrSF y TotalBsmtSF estan fuertemente correladas, habría que quitar una de ellas en el modelo (es normal que haya una correlacion entre la superficie total del sótano y la de la primera planta)
+
+* Existen correlaciones moderadas entre las variables GrLivArea y 1stFlrSF y 2ndFlrSF, no obstante un análisis más detentenido nos muestra que la suma de las siguientes variables tienen correlacion unidad, lo cuál es un punto a favor en la consistencia de los datos de estas variables en el dataset:
+
+```{r message=FALSE, warning=FALSE}
+
+cor(train$GrLivArea, (train$`1stFlrSF` + train$`2ndFlrSF` + train$LowQualFinSF))
+
+```
+
+Esto es lógico debido a que la suma de las superficies habitables de la primera y segunda planta mas la superficie de "baja calidad" tienen que coicidir con la superficie total habitable sin contar los sótanos. Es por ello que estas variables o hay que transformarlas para evitar este caso de correlación perfecta o bien eliminar del modelo alguna de ellas. La decisión se tomará mas adelante.
+      
+A continuación mostraremos un tipo de gráfica que muestra de forma más visual la anterior matriz de correlación. En ella cuando más cerca están unos puntos de otros existe una mayor similitud entre las distintas variables. Cada una de ellas está a su vez enlazada con una "banda" de color azul o rojo que cuantifica el grado de correlación entre las variables. En ella ya vemos que la variable objetivo de estudio, el precio de venta de la casa, está muy influenciada por todas aquellas variables continuas que cuantifican la superficie en la que se dividen las distintas parcelas de la propiedad (habitaciones, garage, porche, sótano, etc.). 
+
+```{r message=FALSE, warning=FALSE}
+
+network_plot(corrmatrix)
+
+``` 
+
+**Matriz de correlaciones - Variables discretas**
+
+Ahora proseguiremos el análisis con las variables discretas. Como antes, generaremos una matriz de correlación y estudiaremos los resultados:
+
+```{r message=FALSE, warning=FALSE}
+
+corrmatrix2 <-corrr::correlate(na.omit(train %>% dplyr::select(var_discretas)))
+rplot(corrmatrix2, legend = TRUE, shape = 16,print_cor = TRUE)+theme(axis.text.x = element_text(angle = 90))
+
+```
+
+```{r message=FALSE, warning=FALSE}
+
+network_plot(corrmatrix2)
+
+```
+
+* Existe una fuerte correlación entre las variables GarageYrBlt y YearBuilt y YearRemodAdd, con ello podemos quitarnos la variable GarageYrBlt.
+
+**Matriz de correlaciones - Variables continuas y discretas**
+
+Ahora intentaremos hacer este mismo análisis agrupando tanto variables contínuas como discretas, El resultado es el siguiente:
+
+```{r message=FALSE, warning=FALSE}
+
+corrmatrix3 <-corrr::correlate(na.omit(train %>% dplyr::select(var_continuas_discretas)))
+
+rplot(corrmatrix3, legend = TRUE, shape = 16,print_cor = TRUE)+theme(axis.text.x = element_text(angle = 90))
+
+network_plot(corrmatrix3)
+
+```
+
+Aqui Observamos una correlación muy fuerte entre las variables GarageCars y GarageArea, con lo que nos podemos quitar la variable GarageCars.Es lógico pensar que el número de coches que caben en una plaza de garage dependa de la superficie de ésta.
+
+* Existe una correlacion muy fuerte también entre las variables GrLiveArea y TotRmsAbvGrd (total de habitaciones), con lo que podemos quitar esta última del análisis al parecer más sencilla de entender la primera de las variables.
+
+* Hay una fuerte correlación entre las variables YearRemodAdd y las variables YearBuild y GarageYrBuild. Esto indica que en muchas de ellas el año en que se construyó el garage coincide con el año en que se contruyó la casa. En el caso de la variable YearRemodAdd parece que se ha hecho coincidir con el año de construcción si la casa no ha sufrido reformas.
+   
+La siguiente función confirmará nuestras sospechas, buscando variables con fuertes correlaciones entre ellas:
+
+```{r message=FALSE, warning=FALSE}
+
+correlacionesProblematicas <- findCorrelation(cor(na.omit(train %>% dplyr::select(var_continuas_discretas))),cutoff = 0.8, verbose = FALSE, names = TRUE)
+
+(correlacionesProblematicas)
+
+```
+
+Comprobamos que, efectivamente, las variables antes comentadas están entre las que aparecen en el listado.
+
+**Correlación SalesPrice**
+
+Ahora intentaremos mostrar en un gráfico de barras el grado de correlación entre las variables anteriormente analizadas y la variable objeto de nuestro análisis.
+    
+```{r message=FALSE, warning=FALSE}
+
+correlacionesSalesPrice <-focus(corrmatrix3, SalePrice)
+
+correlacionesSalesPrice%>%  arrange(SalePrice) %>%  ggplot(aes(x=rowname ,y=SalePrice,fill=factor(rowname))) +
+  geom_bar(position="dodge",stat="identity") + 
+  coord_flip() +
+  ggtitle("Correlacion entre las variables numéricas y el precio de las casas")
+
+```
+
+En este diagrama se muestra más claramente lo que ya se ha comentado con anterioridad: casi todas las variables tienen correlaciones positivas con el precio excepto unas pocas (sería interesante el averiguar por qué, ya que serían factores que influyen negativamente en el precio de una vivienda). Además las variables con mayores correlaciones tiene que ver con la superficie habitable de la casa y la superficie de la primera planta (lo que muestra que la mayoría de las casas tienen una única planta. El tener una segunda planta influye moderadamente en el precio de la vivienda). También hay correlaciones moderadas entre las características del garage, el año de construcción, la superficie del sótano, etc. Por lo tanto, estas variables deberían entrar significativamente en el modelo de regresión que generemos en esta práctica.
+
+
+
+Ahora realizaremos unos cuantos diagramas de dispersión entre las variables contínuas y el precio de la vivienda para ver si existen relaciones lineales entre dichas variables (importante para saber si el modelo de regresión lineal es el más adecuado para el problema que tenemos en esta práctica):
+
+```{r}
+
+na.omit(train %>% dplyr::select(var_continuas)) %>% plot_scatterplot( by = "SalePrice", sampled_rows = 1000L, nrow =2,ncol=2) 
+
+```
+
+Observamos que sí que existen ciertas relaciones apróximadas pero con algunas anomalías que comentamos a continuación:
+  
+* Existen muchos valores concentrados en el valor cero para muchas de las variables (es normal, por ejemplo, que haya muchas casas que no tengan segundo piso, por lo que para ellas la variable que contabiliza su superficie sea cero).
+
+* Se ven numerosos "outliers" en muchas variables, lo que es indicativo de casas con características especiales, tanto a la baja como al alza. En particular, la variable "LotArea" es un indicativo de casas de lujo para valores extremadamente altos de la misma (en su gráfica se muestran claramente estos "outliers"). Otra de las variables que muestran casas fuera de lo común es "3SsnPorch", en donde vemos que muy pocas casas la tienen informada con un valor mayor que cero.
+
+En cuanto a la detección de Outliers, como se ha indicado con anterioridad, existen indicios más que suficientes para inferir que, efectivamente, en este dataset existe más de una casa que podría crear problemas en el modelo de regresión lineal. Para detectarlos y almacenarlos en una lista para su posterior tratamiento, ejecutaremos el siguiente código, que además mostrará un conjunto de diagramas de caja con las variables continuas del dataset:
+
+```{r message=FALSE, warning=FALSE}
+
+
+listaOutliers <- list()
+#listaBoxPlots <- c()
+
+dataset_var_continuas <- train %>% dplyr::select(var_continuas)
+
+iterator = 1 
+
+for(i in colnames(dataset_var_continuas)) {
+  
+  outlier_values <- boxplot.stats(dataset_var_continuas[[i]])$out
+  
+  boxPlotDibujar <- boxplot(dataset_var_continuas[[i]], main=i, boxwex=0.1)
+  
+  if(i %in% c('LotArea','1stFlrSF','GrLivArea','PoolArea','TotalBsmtSF')) {
+    boxPlotDibujar
+  }
+  
+  #listaBoxPlots <- c(listaBoxPlots,boxPlotDibujar)
+  
+  outliersRosen <- rosnerTest(dataset_var_continuas[[i]], k = 4, warn = F)
+  
+  listaOutliers[[iterator]] <- outliersRosen
+  
+  iterator <- iterator +1
+
+}
+
+```
