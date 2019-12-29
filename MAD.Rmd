@@ -979,6 +979,8 @@ Continuaremos este apartado realizando la transformación logarítmica tanto de 
 
 variablesTransformar <- names(variablesSkewnessAlto)[!names(variablesSkewnessAlto) %in% var_columnas_eliminadas  & !names(variablesSkewnessAlto) %in% var_eliminar_correlacion ]
 
+variablesTransformar <- c(variablesTransformar,'GrLivArea')
+
 train <- train %>% var_log(variablesTransformar)
 
 ```
@@ -1064,21 +1066,21 @@ train <- train %>%  dplyr::filter(GrLivArea  < 8.4 )
 
 #'LotArea','1stFlrSF','GrLivArea','TotalBsmtSF','Total_porch_SF','TotalSF'
 
-#listaPosOutliers <- c()
-#for(i in colnames(train)) {
-#  if(is.numeric(train[[i]]) && !is.factor(train[[i]])  ) {
-#      if(i %in% c('SalePrice'))   {
-#          outliersRosen <- rosnerTest(train[[i]], k = 3, warn = F)
+listaPosOutliers <- c()
+for(i in colnames(train)) {
+  if(is.numeric(train[[i]]) && !is.factor(train[[i]])  ) {
+      if(i %in% c('SalePrice'))   {
+          outliersRosen <- rosnerTest(train[[i]], k = 5, warn = F)
           #print(outliersRosen$all.stats$Obs.Num)
-#          listaPosOutliers <- #c(listaPosOutliers,outliersRosen$all.stats$Obs.Num)
-#      }
-#  }
-#}
+          listaPosOutliers <- c(listaPosOutliers,outliersRosen$all.stats$Obs.Num)
+      }
+  }
+}
 
-#listaPosOutliers <- unique(listaPosOutliers , na.rm=TRUE)
-#train_sin_na_outliers <- train[-listaPosOutliers,]
+listaPosOutliers <- unique(listaPosOutliers , na.rm=TRUE)
+train_sin_na_outliers <- train[-listaPosOutliers,]
 #train_sin_na_outliers <- train_sin_na_outliers[-c(358,182),] 
-train_sin_na_outliers <- train %>%  na.omit()
+#train_sin_na_outliers <- train %>%  na.omit()
 
 ```
 
@@ -1119,7 +1121,7 @@ Las variables con las que al final **SI** nos quedaremos para el cálculo del mo
 
 #'Functional'
 
-var_modelo = c( 'GrLivArea','LotArea','Total_Bathrooms','Total_porch_SF','MSZoning','LandContour','LotConfig','Condition1','BldgType','HouseStyle','RoofStyle','MasVnrType','SaleType','SaleCondition','YearBuilt','YearRemodAdd','MoSold','YrSold','OverallQual','OverallCond','PavedDrive','Fence','BsmtFinSF1','ExterQual','BsmtQual','BsmtExposure','BsmtFinType1','BsmtUnfSF','CentralAir','KitchenQual','Fireplaces','FireplaceQu','BedroomAbvGr','KitchenAbvGr','LotShape','GarageArea','GarageCond','Neighborhood','has2ndFloor','Alley','TotalSF','GarageType','Total_porch_SF','MasVnrArea')
+var_modelo = c( 'GrLivArea','LotArea','Total_Bathrooms','Total_porch_SF','MSZoning','LandContour','LotConfig','Condition1','BldgType','HouseStyle','RoofStyle','MasVnrType','SaleType','SaleCondition','YearBuilt','YearRemodAdd','MoSold','YrSold','OverallQual','OverallCond','PavedDrive','Fence','BsmtFinSF1','ExterQual','BsmtQual','BsmtExposure','BsmtFinType1','BsmtUnfSF','CentralAir','KitchenQual','Fireplaces','FireplaceQu','BedroomAbvGr','KitchenAbvGr','LotShape','GarageArea','GarageCond','Neighborhood','has2ndFloor','Alley','TotalSF','GarageType','Total_porch_SF','MasVnrArea','Foundation')
 
 var_modelo_with_SalePrice <- c(var_modelo,'SalePrice')
 
@@ -1244,7 +1246,6 @@ cat(' El modelo de lasso usa', varsSelected, 'variables en el modelo, y rechazo 
 
 ## Ajuste, interpretación y diagnosis del modelo de regresión lineal múltiple
 
-## Ajuste, interpretación y diagnosis del modelo de regresión lineal múltiple
 
  En primer lugar almacenaremos los valores de las prediccion para la parte de test en 3 variables distintas:
 
